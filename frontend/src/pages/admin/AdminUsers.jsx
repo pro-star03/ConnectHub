@@ -7,6 +7,9 @@ const AdminUsers = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
+    const [currentPage, setCurrentPage] = useState(1);
+  const usersPerPage = 10;
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -45,6 +48,13 @@ const AdminUsers = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-4">
@@ -56,12 +66,12 @@ const AdminUsers = () => {
             placeholder="Search users..." 
             className="input input-bordered w-full md:w-64"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
           />
           <select 
             className="select select-bordered"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
@@ -86,10 +96,10 @@ const AdminUsers = () => {
             <tbody>
               {loading ? (
                 <tr><td colSpan="6" className="text-center p-8"><span className="loading loading-spinner"></span></td></tr>
-              ) : filteredUsers.length === 0 ? (
+              ) : currentUsers.length === 0 ? (
                 <tr><td colSpan="6" className="text-center p-8 text-base-content/50">No users found</td></tr>
               ) : (
-                filteredUsers.map(user => (
+                currentUsers.map(user => (
                   <tr key={user._id}>
                     <td>
                       <div className="flex items-center space-x-3">
@@ -141,6 +151,28 @@ const AdminUsers = () => {
             </tbody>
           </table>
         </div>
+        
+        {totalPages > 1 && (
+          <div className="flex justify-center p-4 border-t border-base-200">
+            <div className="join">
+              <button 
+                className="join-item btn btn-sm"
+                onClick={() => paginate(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                «
+              </button>
+              <button className="join-item btn btn-sm">Page {currentPage} of {totalPages}</button>
+              <button 
+                className="join-item btn btn-sm"
+                onClick={() => paginate(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                »
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
