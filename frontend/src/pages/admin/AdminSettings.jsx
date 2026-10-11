@@ -1,15 +1,55 @@
-import { useState, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
+import { Clock, Sun, Moon } from 'lucide-react';
 
 const AdminSettings = () => {
-  const { user, updateUser } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  const [lastLogin, setLastLogin] = useState(null);
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [settingsError, setSettingsError] = useState('');
+  const [adminTheme, setAdminTheme] = useState(() => localStorage.getItem('adminTheme') || 'dark');
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await api.get('/admin/settings');
+      if (res.data) {
+        setRegistrationEnabled(res.data.registrationEnabled !== false);
+        setLastLogin(res.data.lastLogin);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleToggleTheme = () => {
+    const nextTheme = adminTheme === 'dark' ? 'light' : 'dark';
+    setAdminTheme(nextTheme);
+    localStorage.setItem('adminTheme', nextTheme);
+    window.dispatchEvent(new Event('adminThemeChanged'));
+  };
+
+  const handleToggleRegistration = async () => {
+    const newValue = !registrationEnabled;
+    setSettingsError('');
+    try {
+      await api.put('/admin/settings', { registrationEnabled: newValue });
+      setRegistrationEnabled(newValue);
+    } catch (err) {
+      setSettingsError(err.response?.data?.message || 'Error updating registration setting');
+    }
+  };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -60,6 +100,74 @@ const AdminSettings = () => {
               <div className="opacity-70">@{user?.username}</div>
               <div className="badge badge-primary mt-2">Admin privileges active</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card bg-base-100 shadow-sm border border-base-200">
+        <div className="card-body">
+          <h3 className="card-title text-xl mb-4">Login Activity</h3>
+          <div className="bg-base-200 rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-primary" />
+              <div>
+                <p className="font-semibold text-sm">Most Recent Admin Login</p>
+                <p className="text-xs opacity-70">Timestamp of latest successful admin session</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="font-mono font-medium text-sm">
+                {lastLogin ? new Date(lastLogin).toLocaleString() : 'No previous login recorded'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card bg-base-100 shadow-sm border border-base-200">
+        <div className="card-body">
+          <h3 className="card-title text-xl mb-4">Theme & Appearance</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-sm">Dashboard Theme</p>
+              <p className="text-xs opacity-70">Toggle between light and dark modes across admin pages</p>
+            </div>
+            <button 
+              type="button"
+              onClick={handleToggleTheme}
+              className="btn btn-outline btn-sm gap-2"
+            >
+              {adminTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {adminTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card bg-base-100 shadow-sm border border-base-200">
+        <div className="card-body">
+          <h3 className="card-title text-xl mb-4">User Registration Setting</h3>
+          {settingsError && <div className="alert alert-error shadow-sm mb-4">{settingsError}</div>}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-sm">Allow New Registrations</p>
+                <span className={`badge badge-sm ${registrationEnabled ? 'badge-success' : 'badge-error'}`}>
+                  {registrationEnabled ? 'ON' : 'OFF'}
+                </span>
+              </div>
+              <p className="text-xs opacity-70 mt-1">
+                {registrationEnabled 
+                  ? 'New users are allowed to sign up for ConnectHub accounts' 
+                  : 'New registrations are disabled. Existing users can still log in'}
+              </p>
+            </div>
+            <input 
+              type="checkbox" 
+              className="toggle toggle-primary"
+              checked={registrationEnabled}
+              onChange={handleToggleRegistration}
+            />
           </div>
         </div>
       </div>

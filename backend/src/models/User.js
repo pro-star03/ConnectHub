@@ -23,6 +23,9 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['light', 'dark', 'system'],
     default: 'system'
+  },
+  lastLogin: {
+    type: Date
   }
 }, { timestamps: true });
 

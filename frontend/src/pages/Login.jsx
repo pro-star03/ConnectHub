@@ -78,12 +78,9 @@ const Login = () => {
             </div>
             
             <div className="form-control">
-              <div className="flex justify-between items-center">
-                <label className="label">
-                  <span className="label-text font-semibold">Password</span>
-                </label>
-                <a href="#" className="text-xs text-primary hover:underline font-medium">Forgot password?</a>
-              </div>
+              <label className="label">
+                <span className="label-text font-semibold">Password</span>
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-base-content/50">
                   <Lock size={18} />

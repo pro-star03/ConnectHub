@@ -9,6 +9,7 @@ const Register = () => {
   
   const [formData, setFormData] = useState({ name: '', username: '', email: '', password: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -16,6 +17,10 @@ const Register = () => {
     e.preventDefault();
     setError('');
     
+    if (formData.password.length < 6) {
+      return setError('Password must be at least 6 characters');
+    }
+
     if (formData.password !== formData.confirmPassword) {
       return setError('Passwords do not match');
     }
@@ -162,14 +167,21 @@ const Register = () => {
                     <Lock size={18} />
                   </div>
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="input input-bordered w-full pl-12 h-12 bg-base-200 focus:bg-base-100 transition-colors"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    className="input input-bordered w-full pl-12 pr-12 h-12 bg-base-200 focus:bg-base-100 transition-colors"
                     placeholder="••••••••"
                     required
                     minLength={6}
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-base-content/50 hover:text-primary transition-colors"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
             </div>

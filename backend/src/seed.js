@@ -76,7 +76,7 @@ const seedData = async () => {
           password: hashedPassword,
           profilePicture,
           bio: `Hello! I'm ${userData.name}. Welcome to my profile!`,
-          isAdmin: userData.username === 'demo'
+          isAdmin: false
         });
         createdUsers.push(user);
         console.log(`Created user: ${user.username}`);

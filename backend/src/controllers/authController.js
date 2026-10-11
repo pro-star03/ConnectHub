@@ -2,6 +2,7 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const ActivityLog = require('../models/ActivityLog');
+const SystemSetting = require('../models/SystemSetting');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
@@ -12,13 +13,33 @@ const generateToken = (id) => {
 // @access  Public
 const registerUser = async (req, res) => {
   try {
+    const regSetting = await SystemSetting.findOne({ key: 'registrationEnabled' });
+    if (regSetting && regSetting.value === false) {
+      return res.status(403).json({ message: 'User registration is currently disabled' });
+    }
+
     const { name, username, email, password } = req.body;
 
     if (!name || !username || !email || !password) {
       return res.status(400).json({ message: 'Please add all required fields' });
     }
 
-    const userExists = await User.findOne({ $or: [{ email }, { username }] });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Please enter a valid email address' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const userExists = await User.findOne({
+      $or: [
+        { email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
+        { username: username.trim() }
+      ]
+    });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists' });
     }
@@ -27,9 +48,9 @@ const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const user = await User.create({
-      name,
-      username,
-      email,
+      name: name.trim(),
+      username: username.trim(),
+      email: normalizedEmail,
       password: hashedPassword
     });
 
@@ -65,11 +86,26 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    const normalizedEmail = email ? email.toLowerCase().trim() : '';
+    const user = await User.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { email }
+      ]
+    });
 
     if (user && (await bcrypt.compare(password, user.password))) {
       if (user.isActive === false) {
         return res.status(401).json({ message: 'Account is deactivated' });
+      }
+      if (user.role === 'admin' || user.isAdmin) {
+        user.lastLogin = new Date();
+        await user.save();
+        await ActivityLog.create({
+          action: 'ADMIN_LOGIN',
+          details: `Admin ${user.username} logged in`,
+          performedBy: user._id
+        });
       }
       res.json({
         _id: user.id,

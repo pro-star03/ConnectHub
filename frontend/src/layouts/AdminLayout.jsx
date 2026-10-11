@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import {
@@ -10,7 +10,9 @@ import {
   MessageSquare as ChatBubbleLeftRightIcon,
   Settings as Cog6ToothIcon,
   LogOut as ArrowLeftOnRectangleIcon,
-  Menu as Bars3Icon
+  Menu as Bars3Icon,
+  Sun as SunIcon,
+  Moon as MoonIcon
 } from 'lucide-react';
 
 const AdminLayout = () => {
@@ -21,6 +23,27 @@ const AdminLayout = () => {
   const handleLogout = () => {
     logoutUser();
     navigate('/admin/login');
+  };
+
+  const [adminTheme, setAdminTheme] = useState(() => localStorage.getItem('adminTheme') || 'dark');
+
+  useEffect(() => {
+    const handleThemeChange = () => {
+      setAdminTheme(localStorage.getItem('adminTheme') || 'dark');
+    };
+    window.addEventListener('storage', handleThemeChange);
+    window.addEventListener('adminThemeChanged', handleThemeChange);
+    return () => {
+      window.removeEventListener('storage', handleThemeChange);
+      window.removeEventListener('adminThemeChanged', handleThemeChange);
+    };
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = adminTheme === 'dark' ? 'light' : 'dark';
+    setAdminTheme(nextTheme);
+    localStorage.setItem('adminTheme', nextTheme);
+    window.dispatchEvent(new Event('adminThemeChanged'));
   };
 
   const navItems = [
@@ -34,7 +57,7 @@ const AdminLayout = () => {
   ];
 
   return (
-    <div className="flex h-screen bg-base-200" data-theme="dark">
+    <div className="flex h-screen bg-base-200" data-theme={adminTheme}>
       {/* Mobile Drawer */}
       <div className="drawer lg:drawer-open">
         <input id="admin-drawer" type="checkbox" className="drawer-toggle" />
@@ -48,6 +71,11 @@ const AdminLayout = () => {
               </label>
             </div>
             <div className="flex-1 px-2 mx-2 font-bold text-xl text-primary">ConnectHub Admin</div>
+            <div className="flex-none">
+              <button type="button" onClick={toggleTheme} className="btn btn-square btn-ghost">
+                {adminTheme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
           
           {/* Main Content */}
@@ -82,6 +110,14 @@ const AdminLayout = () => {
             </ul>
 
             <div className="p-4 mt-auto border-t border-base-300">
+              <button 
+                type="button"
+                onClick={toggleTheme} 
+                className="btn btn-outline btn-sm w-full gap-2 mb-3"
+              >
+                {adminTheme === 'dark' ? <SunIcon className="w-4 h-4" /> : <MoonIcon className="w-4 h-4" />}
+                {adminTheme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+              </button>
               <div className="flex items-center gap-3 mb-4 px-2">
                 <div className="avatar placeholder">
                   <div className="bg-neutral-focus text-neutral-content rounded-full w-10">

@@ -4,6 +4,7 @@ const Report = require('../models/Report');
 const Feedback = require('../models/Feedback');
 const Comment = require('../models/Comment');
 const ActivityLog = require('../models/ActivityLog');
+const SystemSetting = require('../models/SystemSetting');
 
 const logActivity = async (action, details, performedBy = null) => {
   try {
@@ -197,6 +198,44 @@ const resolveFeedback = async (req, res) => {
   }
 };
 
+const getAdminSettings = async (req, res) => {
+  try {
+    const regSetting = await SystemSetting.findOne({ key: 'registrationEnabled' });
+    const registrationEnabled = regSetting ? regSetting.value : true;
+
+    const lastLoginRecord = await ActivityLog.findOne({
+      action: 'ADMIN_LOGIN',
+      performedBy: req.user._id
+    }).sort({ createdAt: -1 });
+
+    const lastLogin = lastLoginRecord ? lastLoginRecord.createdAt : (req.user.lastLogin || null);
+
+    res.json({
+      registrationEnabled,
+      lastLogin
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateAdminSettings = async (req, res) => {
+  try {
+    const { registrationEnabled } = req.body;
+    if (typeof registrationEnabled === 'boolean') {
+      await SystemSetting.findOneAndUpdate(
+        { key: 'registrationEnabled' },
+        { value: registrationEnabled },
+        { upsert: true, new: true }
+      );
+      await logActivity('SETTINGS_UPDATED', `Registration setting updated to ${registrationEnabled}`, req.user._id);
+    }
+    res.json({ message: 'Settings updated successfully', registrationEnabled });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getAllUsers,
@@ -208,5 +247,7 @@ module.exports = {
   adminDeletePost,
   getFeedback,
   resolveFeedback,
-  resolveReport
+  resolveReport,
+  getAdminSettings,
+  updateAdminSettings
 };

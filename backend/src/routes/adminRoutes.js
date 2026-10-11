@@ -12,7 +12,9 @@ const {
   adminDeletePost,
   getFeedback,
   resolveFeedback,
-  resolveReport
+  resolveReport,
+  getAdminSettings,
+  updateAdminSettings
 } = require('../controllers/adminController');
 
 // All routes here are protected and require admin privileges
@@ -29,5 +31,7 @@ router.put('/users/:id/unblock', unblockUser);
 router.delete('/posts/:id', adminDeletePost);
 router.get('/feedback', getFeedback);
 router.put('/feedback/:id/resolve', resolveFeedback);
+router.get('/settings', getAdminSettings);
+router.put('/settings', updateAdminSettings);
 
 module.exports = router;
