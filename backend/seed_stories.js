@@ -13,9 +13,11 @@ const names = [
   'Rahul', 'Riya', 'Shreya', 'Sneha', 'Varun'
 ];
 
-const connectDB = async () => {
+const connectDB = require('./src/config/db');
+
+const run = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await connectDB();
     console.log('MongoDB Connected');
 
     // 1. Create 25 Users
@@ -132,4 +134,4 @@ const connectDB = async () => {
   }
 };
 
-connectDB();
+run();

@@ -1,4 +1,5 @@
 require('dotenv').config();
+const connectDB = require('./src/config/db');
 const mongoose = require('mongoose');
 const User = require('./src/models/User');
 const Feedback = require('./src/models/Feedback');
@@ -11,10 +12,10 @@ const runTests = async () => {
   let adminToken, userToken, testUserId;
 
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await connectDB();
     
     const adminUser = await User.findOne({ email: 'alok@gmail.com' });
-    const normalUser = await User.findOne({ email: 'aarav_demo@example.com' });
+    const normalUser = await User.findOne({ role: { $ne: 'admin' }, isAdmin: { $ne: true } });
     testUserId = normalUser._id;
     
     const jwt = require('jsonwebtoken');

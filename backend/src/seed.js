@@ -35,6 +35,7 @@ const demoUsers = [
   { name: 'Xavier Dsouza', username: 'xavier_dsouza', gender: 'male' },
   { name: 'Yash Mehta', username: 'yash_mehta', gender: 'male' },
   { name: 'Zara Khan', username: 'zara_khan', gender: 'female' },
+  { name: 'Admin Alok', username: 'alok_admin', email: 'alok@gmail.com', isAdmin: true, role: 'admin' },
   { name: 'Demo User', username: 'demo', email: 'demo@connecthub.test' }
 ];
 
@@ -75,12 +76,18 @@ const seedData = async () => {
           email,
           password: hashedPassword,
           profilePicture,
-          bio: `Hello! I'm ${userData.name}. Welcome to my profile!`,
-          isAdmin: false
+          bio: userData.bio || `Hello! I'm ${userData.name}. Welcome to my profile!`,
+          isAdmin: userData.isAdmin || false,
+          role: userData.role || 'user'
         });
         createdUsers.push(user);
         console.log(`Created user: ${user.username}`);
       } else {
+        if (userData.isAdmin) {
+          existingUser.isAdmin = true;
+          existingUser.role = 'admin';
+          await existingUser.save();
+        }
         createdUsers.push(existingUser);
       }
     }

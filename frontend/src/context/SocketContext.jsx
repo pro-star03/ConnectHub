@@ -6,11 +6,11 @@ export const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
+  const [onlineUserIds, setOnlineUserIds] = useState(new Set());
   const { user } = useContext(AuthContext);
 
   useEffect(() => {
     if (user?._id) {
-      // Connect directly to the backend port (5000) during development to avoid Vite proxy ECONNABORTED errors
       const socketUrl = import.meta.env.DEV ? `${window.location.protocol}//${window.location.hostname}:5000` : '/';
       
       const newSocket = io(socketUrl, {
@@ -18,8 +18,33 @@ export const SocketProvider = ({ children }) => {
       });
 
       newSocket.on('connect', () => {
-        console.log('Socket connected:', newSocket.id);
         newSocket.emit('register', user._id);
+      });
+
+      newSocket.on('onlineUsersList', (ids) => {
+        if (Array.isArray(ids)) {
+          setOnlineUserIds(new Set(ids.map(id => id.toString())));
+        }
+      });
+
+      newSocket.on('userOnline', ({ userId }) => {
+        if (userId) {
+          setOnlineUserIds(prev => {
+            const next = new Set(prev);
+            next.add(userId.toString());
+            return next;
+          });
+        }
+      });
+
+      newSocket.on('userOffline', ({ userId }) => {
+        if (userId) {
+          setOnlineUserIds(prev => {
+            const next = new Set(prev);
+            next.delete(userId.toString());
+            return next;
+          });
+        }
       });
 
       setSocket(newSocket);
@@ -27,11 +52,19 @@ export const SocketProvider = ({ children }) => {
       return () => {
         newSocket.disconnect();
       };
+    } else {
+      setSocket(null);
+      setOnlineUserIds(new Set());
     }
   }, [user?._id]);
 
+  const isUserOnline = (userId) => {
+    if (!userId) return false;
+    return onlineUserIds.has(userId.toString());
+  };
+
   return (
-    <SocketContext.Provider value={{ socket }}>
+    <SocketContext.Provider value={{ socket, onlineUserIds, isUserOnline }}>
       {children}
     </SocketContext.Provider>
   );

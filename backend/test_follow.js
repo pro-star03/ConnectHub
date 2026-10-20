@@ -1,9 +1,9 @@
 require('dotenv').config();
-const mongoose = require('mongoose');
+const connectDB = require('./src/config/db');
 const User = require('./src/models/User');
 
 async function test() {
-  await mongoose.connect(process.env.MONGODB_URI);
+  await connectDB();
   console.log('Connected to MongoDB');
   
   const users = await User.find({}).limit(5);

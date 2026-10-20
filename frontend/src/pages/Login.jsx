@@ -60,16 +60,16 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="form-control">
               <label className="label">
-                <span className="label-text font-semibold">Email Address</span>
+                <span className="label-text font-semibold">Email or Username</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-base-content/50">
                   <Mail size={18} />
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   className="input input-bordered w-full pl-12 h-12 bg-base-200 focus:bg-base-100 transition-colors"
-                  placeholder="you@example.com"
+                  placeholder="Enter your email or username"
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -88,7 +88,7 @@ const Login = () => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   className="input input-bordered w-full pl-12 pr-12 h-12 bg-base-200 focus:bg-base-100 transition-colors"
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}

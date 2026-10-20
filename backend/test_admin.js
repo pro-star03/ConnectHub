@@ -1,4 +1,5 @@
 require('dotenv').config();
+const connectDB = require('./src/config/db');
 const mongoose = require('mongoose');
 const User = require('./src/models/User');
 const Post = require('./src/models/Post');
@@ -11,7 +12,7 @@ const runTests = async () => {
   let adminToken, userToken;
 
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await connectDB();
     const adminUser = await User.findOne({ email: 'alok@gmail.com' });
     if (adminUser.role === 'admin' && adminUser.isAdmin) {
       console.log('[PASS] DB: alok@gmail.com is admin');
@@ -24,7 +25,7 @@ const runTests = async () => {
 
   try {
     const adminUser = await User.findOne({ email: 'alok@gmail.com' });
-    const normalUser = await User.findOne({ email: 'aarav_demo@example.com' });
+    const normalUser = await User.findOne({ role: { $ne: 'admin' }, isAdmin: { $ne: true } });
     
     const jwt = require('jsonwebtoken');
     adminToken = jwt.sign({ id: adminUser._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
@@ -120,9 +121,9 @@ const runTests = async () => {
   }
 
   try {
-    const normalUserBefore = await User.findOne({ email: 'aarav_demo@example.com' });
+    const normalUserBefore = await User.findOne({ role: { $ne: 'admin' }, isAdmin: { $ne: true } });
     const blockRes = await fetchApi(`/admin/users/${normalUserBefore._id}/block`, adminToken, 'PUT');
-    const blockedUser = await User.findOne({ email: 'aarav_demo@example.com' });
+    const blockedUser = await User.findById(normalUserBefore._id);
     if (blockRes.status === 200 && blockedUser.isActive === false) {
       console.log('[PASS] Admin API: Successfully blocked user and updated MongoDB');
     } else {
@@ -130,7 +131,7 @@ const runTests = async () => {
     }
 
     const unblockRes = await fetchApi(`/admin/users/${normalUserBefore._id}/unblock`, adminToken, 'PUT');
-    const unblockedUser = await User.findOne({ email: 'aarav_demo@example.com' });
+    const unblockedUser = await User.findById(normalUserBefore._id);
     if (unblockRes.status === 200 && unblockedUser.isActive === true) {
       console.log('[PASS] Admin API: Successfully unblocked user and updated MongoDB');
     } else {

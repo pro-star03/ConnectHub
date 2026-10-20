@@ -1,9 +1,9 @@
 require('dotenv').config();
-const mongoose = require('mongoose');
+const connectDB = require('./src/config/db');
 const User = require('./src/models/User');
 
 const run = async () => {
-  await mongoose.connect(process.env.MONGO_URI);
+  await connectDB();
   const result = await User.updateOne(
     { email: 'alok@gmail.com' },
     { $set: { role: 'admin', isAdmin: true } }

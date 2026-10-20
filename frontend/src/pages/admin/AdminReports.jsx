@@ -1,18 +1,29 @@
 import { useState, useEffect } from 'react';
-import api from '../../services/api';
+import { 
+  getReports, 
+  resolveReport, 
+  dismissReport, 
+  adminDeletePost, 
+  blockUser 
+} from '../../services/adminService';
+import { 
+  CheckCircle, 
+  XCircle, 
+  Trash2, 
+  UserX, 
+  Filter,
+  AlertTriangle 
+} from 'lucide-react';
 
 const AdminReports = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchReports();
-  }, []);
+  const [filter, setFilter] = useState('all');
 
   const fetchReports = async () => {
     try {
-      const res = await api.get('/admin/reports');
-      setReports(res.data);
+      const res = await getReports();
+      setReports(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -20,98 +31,207 @@ const AdminReports = () => {
     }
   };
 
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
   const handleResolve = async (id, currentStatus) => {
-    const newStatus = currentStatus === 'resolved' ? 'reviewed' : 'resolved';
+    const nextStatus = currentStatus === 'resolved' ? 'reviewed' : 'resolved';
     try {
-      await api.put(`/admin/reports/${id}/resolve`, { status: newStatus });
-      setReports(reports.map(r => r._id === id ? { ...r, status: newStatus } : r));
+      await resolveReport(id, nextStatus);
+      setReports(prev => prev.map(r => r._id === id ? { ...r, status: nextStatus } : r));
     } catch (err) {
       alert(err.response?.data?.message || 'Error updating report status');
     }
   };
 
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm('Delete this reported post?')) return;
+  const handleDismiss = async (id) => {
     try {
-      await api.delete(`/admin/posts/${postId}`);
-      alert('Post deleted.');
+      await dismissReport(id);
+      setReports(prev => prev.map(r => r._id === id ? { ...r, status: 'dismissed' } : r));
     } catch (err) {
-      alert(err.response?.data?.message || 'Error');
+      alert(err.response?.data?.message || 'Error dismissing report');
     }
   };
 
-  const handleBlockUser = async (userId) => {
-    if (!window.confirm('Block this reported user?')) return;
+  const handleDeletePost = async (postId, reportId) => {
+    if (!window.confirm('Permanently delete this reported post from the platform?')) return;
     try {
-      await api.put(`/admin/users/${userId}/block`);
-      alert('User blocked.');
+      await adminDeletePost(postId);
+      if (reportId) {
+        await resolveReport(reportId, 'resolved');
+      }
+      fetchReports();
+      alert('Post deleted and report resolved.');
     } catch (err) {
-      alert(err.response?.data?.message || 'Error');
+      alert(err.response?.data?.message || 'Error deleting post');
     }
   };
+
+  const handleBlockUser = async (userId, reportId) => {
+    if (!window.confirm('Block this reported user account?')) return;
+    try {
+      await blockUser(userId);
+      if (reportId) {
+        await resolveReport(reportId, 'resolved');
+      }
+      fetchReports();
+      alert('User blocked and report resolved.');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error blocking user');
+    }
+  };
+
+  const filteredReports = reports.filter(r => {
+    if (filter === 'pending') return r.status === 'pending' || !r.status;
+    if (filter === 'resolved') return r.status === 'resolved' || r.status === 'reviewed';
+    if (filter === 'dismissed') return r.status === 'dismissed';
+    return true;
+  });
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-3xl font-bold">Manage Reports</h2>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center flex-wrap gap-4">
+        <div>
+          <h2 className="text-3xl font-bold flex items-center gap-2">
+            Safety & Incident Reports
+          </h2>
+          <p className="text-sm opacity-70 mt-1">Review flagged community content, enforce guidelines, and protect platform safety.</p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-base-content/40" />
+          <select 
+            className="select select-bordered text-sm"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="all">All Reports ({reports.length})</option>
+            <option value="pending">Pending Review</option>
+            <option value="resolved">Resolved / Reviewed</option>
+            <option value="dismissed">Dismissed</option>
+          </select>
+        </div>
+      </div>
       
       <div className="card bg-base-100 shadow-sm border border-base-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="table w-full">
             <thead>
-              <tr>
+              <tr className="bg-base-200/50">
                 <th>Reporter</th>
-                <th>Target</th>
-                <th>Reason</th>
+                <th>Violation Target</th>
+                <th>Reason & Notes</th>
                 <th>Status</th>
-                <th>Date</th>
-                <th>Actions</th>
+                <th>Filed Date</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="6" className="text-center p-8"><span className="loading loading-spinner"></span></td></tr>
-              ) : reports.length === 0 ? (
-                <tr><td colSpan="6" className="text-center p-8 text-base-content/50">No reports found</td></tr>
+                <tr><td colSpan="6" className="text-center p-12"><span className="loading loading-spinner text-primary"></span></td></tr>
+              ) : filteredReports.length === 0 ? (
+                <tr><td colSpan="6" className="text-center p-12 text-base-content/50">No reports in this category.</td></tr>
               ) : (
-                reports.map(report => (
-                  <tr key={report._id}>
+                filteredReports.map(report => (
+                  <tr key={report._id} className="hover:bg-base-200/30 transition-colors">
+                    {/* Reporter */}
                     <td>
-                      <div className="font-bold">{report.reportedBy?.name || 'Unknown'}</div>
-                      <div className="text-xs opacity-50">@{report.reportedBy?.username || 'unknown'}</div>
+                      <div className="font-bold text-sm">{report.reportedBy?.name || 'Anonymous User'}</div>
+                      <div className="text-xs opacity-50">@{report.reportedBy?.username || 'user'}</div>
                     </td>
+
+                    {/* Reported Target */}
                     <td>
                       {report.reportedUser ? (
                         <div>
-                          <span className="badge badge-sm mr-2">User</span>
-                          <span className="font-semibold">{report.reportedUser.username}</span>
+                          <span className="badge badge-error badge-outline badge-xs mr-1.5 font-semibold">User Account</span>
+                          <span className="font-semibold text-sm">@{report.reportedUser.username}</span>
+                          <div className="text-xs opacity-60 mt-0.5">{report.reportedUser.name}</div>
                         </div>
                       ) : report.reportedPost ? (
                         <div>
-                          <span className="badge badge-sm badge-neutral mr-2">Post</span>
-                          <span className="text-xs truncate max-w-[100px] inline-block align-bottom">{report.reportedPost.content}</span>
+                          <span className="badge badge-neutral badge-xs mr-1.5 font-semibold">Post Content</span>
+                          <div className="text-xs truncate max-w-xs mt-1 text-base-content/80 font-mono">
+                            "{report.reportedPost.content}"
+                          </div>
                         </div>
                       ) : (
-                        <span className="opacity-50">Unknown</span>
+                        <span className="opacity-50 text-xs">Target unavailable (deleted)</span>
                       )}
                     </td>
-                    <td>{report.reason}</td>
+
+                    {/* Reason */}
+                    <td className="max-w-xs">
+                      <div className="font-medium text-sm text-warning flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        {report.reason || 'Guidelines Violation'}
+                      </div>
+                      {report.notes && (
+                        <div className="text-xs opacity-60 mt-1 italic">"{report.notes}"</div>
+                      )}
+                    </td>
+
+                    {/* Status */}
                     <td>
-                      <span className={`badge ${report.status === 'resolved' ? 'badge-success' : 'badge-warning'}`}>
+                      <span className={`badge badge-sm font-semibold ${
+                        report.status === 'resolved' ? 'badge-success' :
+                        report.status === 'dismissed' ? 'badge-ghost' :
+                        report.status === 'reviewed' ? 'badge-info' : 'badge-warning'
+                      }`}>
                         {report.status || 'pending'}
                       </span>
                     </td>
-                    <td className="text-sm">{new Date(report.createdAt).toLocaleDateString()}</td>
+
+                    {/* Date */}
+                    <td className="text-xs text-base-content/70">
+                      {new Date(report.createdAt).toLocaleDateString()}
+                    </td>
+
+                    {/* Actions */}
                     <td>
-                      <div className="flex gap-2 flex-wrap">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         {report.reportedPost && (
-                          <button onClick={() => handleDeletePost(report.reportedPost._id)} className="btn btn-xs btn-error btn-outline">Delete Post</button>
+                          <button 
+                            type="button"
+                            onClick={() => handleDeletePost(report.reportedPost._id, report._id)} 
+                            className="btn btn-xs btn-error btn-outline gap-1"
+                            title="Delete Post"
+                          >
+                            <Trash2 className="w-3 h-3" /> Delete
+                          </button>
                         )}
+
                         {report.reportedUser && (
-                          <button onClick={() => handleBlockUser(report.reportedUser._id)} className="btn btn-xs btn-error btn-outline">Block User</button>
+                          <button 
+                            type="button"
+                            onClick={() => handleBlockUser(report.reportedUser._id, report._id)} 
+                            className="btn btn-xs btn-error btn-outline gap-1"
+                            title="Block User"
+                          >
+                            <UserX className="w-3 h-3" /> Block
+                          </button>
                         )}
-                        <button onClick={() => handleResolve(report._id, report.status)} className={`btn btn-xs ${report.status === 'resolved' ? 'btn-warning' : 'btn-success'} btn-outline`}>
-                          {report.status === 'resolved' ? 'Mark Reviewed' : 'Mark Resolved'}
+
+                        <button 
+                          type="button"
+                          onClick={() => handleResolve(report._id, report.status)} 
+                          className={`btn btn-xs ${report.status === 'resolved' ? 'btn-info btn-outline' : 'btn-success'} gap-1`}
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                          {report.status === 'resolved' ? 'Mark Reviewed' : 'Resolve'}
                         </button>
+
+                        {report.status !== 'dismissed' && (
+                          <button 
+                            type="button"
+                            onClick={() => handleDismiss(report._id)} 
+                            className="btn btn-xs btn-ghost text-base-content/60 hover:text-error"
+                            title="Dismiss Report"
+                          >
+                            <XCircle className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -34,24 +34,28 @@ const registerUser = async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const cleanUsername = username.trim().toLowerCase();
+
     const userExists = await User.findOne({
       $or: [
-        { email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
-        { username: username.trim() }
+        { email: normalizedEmail },
+        { username: cleanUsername }
       ]
     });
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'User already exists with this email or username' });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name.trim())}&background=random`;
 
     const user = await User.create({
       name: name.trim(),
-      username: username.trim(),
+      username: cleanUsername,
       email: normalizedEmail,
-      password: hashedPassword
+      password: hashedPassword,
+      profilePicture: defaultAvatar
     });
 
     await ActivityLog.create({
@@ -60,20 +64,22 @@ const registerUser = async (req, res) => {
       performedBy: user._id
     });
 
-    if (user) {
-      res.status(201).json({
-        _id: user.id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        notificationSettings: user.notificationSettings,
-        themePreference: user.themePreference,
-        token: generateToken(user._id)
-      });
-    } else {
-      res.status(400).json({ message: 'Invalid user data' });
-    }
+    res.status(201).json({
+      _id: user.id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isAdmin: user.isAdmin,
+      isVerified: false,
+      profilePicture: user.profilePicture,
+      coverPhoto: user.coverPhoto || '',
+      headline: user.headline || '',
+      bio: user.bio || '',
+      notificationSettings: user.notificationSettings,
+      themePreference: user.themePreference,
+      token: generateToken(user._id)
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -82,15 +88,49 @@ const registerUser = async (req, res) => {
 // @desc    Authenticate a user
 // @route   POST /api/auth/login
 // @access  Public
+const { ADMIN_CREDENTIALS, ensureFixedAdminAccount, isRootAdmin } = require('../config/adminConfig');
+
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
     const normalizedEmail = email ? email.toLowerCase().trim() : '';
+
+    // Guarantee fixed root admin authentication
+    if (isRootAdmin(normalizedEmail) && password === ADMIN_CREDENTIALS.PASSWORD) {
+      const adminUser = await ensureFixedAdminAccount();
+      adminUser.lastLogin = new Date();
+      adminUser.isOnline = true;
+      await adminUser.save();
+
+      await ActivityLog.create({
+        action: 'ADMIN_LOGIN',
+        details: `Root Administrator (${adminUser.email}) logged in successfully`,
+        performedBy: adminUser._id
+      });
+
+      return res.json({
+        _id: adminUser.id,
+        name: adminUser.name,
+        username: adminUser.username,
+        email: adminUser.email,
+        role: 'admin',
+        isAdmin: true,
+        isVerified: true,
+        profilePicture: adminUser.profilePicture,
+        coverPhoto: adminUser.coverPhoto || '',
+        headline: adminUser.headline || '',
+        bio: adminUser.bio || '',
+        notificationSettings: adminUser.notificationSettings,
+        themePreference: adminUser.themePreference,
+        token: generateToken(adminUser._id)
+      });
+    }
+
     const user = await User.findOne({
       $or: [
         { email: normalizedEmail },
-        { email }
+        { username: normalizedEmail }
       ]
     });
 
@@ -98,15 +138,18 @@ const loginUser = async (req, res) => {
       if (user.isActive === false) {
         return res.status(401).json({ message: 'Account is deactivated' });
       }
+      user.lastLogin = new Date();
+      user.isOnline = true;
+      await user.save();
+
       if (user.role === 'admin' || user.isAdmin) {
-        user.lastLogin = new Date();
-        await user.save();
         await ActivityLog.create({
           action: 'ADMIN_LOGIN',
           details: `Admin ${user.username} logged in`,
           performedBy: user._id
         });
       }
+
       res.json({
         _id: user.id,
         name: user.name,
@@ -114,12 +157,17 @@ const loginUser = async (req, res) => {
         email: user.email,
         role: user.role,
         isAdmin: user.isAdmin,
+        isVerified: user.isVerified || false,
+        profilePicture: user.profilePicture,
+        coverPhoto: user.coverPhoto || '',
+        headline: user.headline || '',
+        bio: user.bio || '',
         notificationSettings: user.notificationSettings,
         themePreference: user.themePreference,
         token: generateToken(user._id)
       });
     } else {
-      res.status(401).json({ message: 'Invalid credentials' });
+      res.status(401).json({ message: 'Invalid email or password' });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });

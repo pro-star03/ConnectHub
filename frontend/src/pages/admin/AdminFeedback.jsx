@@ -5,10 +5,6 @@ const AdminFeedback = () => {
   const [feedback, setFeedback] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchFeedback();
-  }, []);
-
   const fetchFeedback = async () => {
     try {
       const res = await api.get('/admin/feedback');
@@ -19,6 +15,10 @@ const AdminFeedback = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchFeedback();
+  }, []);
 
   const handleResolve = async (id, currentStatus) => {
     const newStatus = currentStatus === 'Resolved' ? 'Reviewed' : 'Resolved';

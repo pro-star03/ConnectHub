@@ -28,11 +28,11 @@ const Dashboard = () => {
         setActivity(activityRes.data);
       } catch (err) {
         console.error('Admin API error', err);
-        setStats(statsRes?.data || { totalUsers: 0, activeUsers: 0, inactiveUsers: 0, totalPosts: 0, totalComments: 0, activeReports: 0 });
-        setUsers(usersRes?.data || []);
-        setReports(reportsRes?.data || []);
-        setFeedback(feedbackRes?.data || []);
-        setActivity(activityRes?.data || []);
+        setStats({ totalUsers: 0, activeUsers: 0, inactiveUsers: 0, totalPosts: 0, totalComments: 0, activeReports: 0 });
+        setUsers([]);
+        setReports([]);
+        setFeedback([]);
+        setActivity([]);
       } finally {
         setLoading(false);
       }

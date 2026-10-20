@@ -9,12 +9,22 @@ const {
   deletePost,
   likePost,
   unlikePost,
-  savePost
+  reactPost,
+  votePoll,
+  savePost,
+  getSavedPosts,
+  getTrendingTags,
+  getSystemAnnouncement
 } = require('../controllers/postController');
+
+router.get('/announcement', getSystemAnnouncement);
 
 router.route('/')
   .post(protect, createPost)
   .get(protect, getPosts);
+
+router.get('/saved', protect, getSavedPosts);
+router.get('/trending-tags', protect, getTrendingTags);
 
 router.route('/:id')
   .get(protect, getPostById)
@@ -23,6 +33,8 @@ router.route('/:id')
 
 router.post('/:id/like', protect, likePost);
 router.post('/:id/unlike', protect, unlikePost);
+router.post('/:id/react', protect, reactPost);
+router.post('/:id/poll/vote', protect, votePoll);
 router.post('/:id/save', protect, savePost);
 
 module.exports = router;

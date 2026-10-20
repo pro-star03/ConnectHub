@@ -1,6 +1,5 @@
 const Comment = require('../models/Comment');
 const Post = require('../models/Post');
-
 const Notification = require('../models/Notification');
 const socket = require('../socket');
 const User = require('../models/User');
@@ -21,14 +20,16 @@ const addComment = async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const comment = await Comment.create({
+    let comment = await Comment.create({
       post: postId,
       user: req.user._id,
-      text
+      text: text.trim()
     });
 
     post.comments.push(comment._id);
     await post.save();
+
+    comment = await comment.populate('user', 'name username profilePicture');
 
     // Notify post owner
     if (post.user.toString() !== req.user._id.toString()) {
@@ -43,17 +44,14 @@ const addComment = async (req, res) => {
           message: `${currentUser.name} commented on your post.`
         });
 
-        const targetSocketId = socket.getSocketId(post.user);
-        if (targetSocketId) {
-          socket.getIO().to(targetSocketId).emit('notification', {
-            _id: notification._id,
-            sender: { _id: currentUser._id, name: currentUser.name, profilePicture: currentUser.profilePicture },
-            type: 'comment',
-            message: notification.message,
-            relatedPost: post._id,
-            createdAt: notification.createdAt
-          });
-        }
+        socket.emitToUser(post.user, 'notification', {
+          _id: notification._id,
+          sender: { _id: currentUser._id, name: currentUser.name, profilePicture: currentUser.profilePicture },
+          type: 'comment',
+          message: notification.message,
+          relatedPost: post._id,
+          createdAt: notification.createdAt
+        });
       }
     }
 
@@ -65,12 +63,12 @@ const addComment = async (req, res) => {
 
 // @desc    Get comments for a post
 // @route   GET /api/comments/:postId
-// @access  Public (or Private depending on choice, let's keep it Private for consistency)
+// @access  Private
 const getPostComments = async (req, res) => {
   try {
     const comments = await Comment.find({ post: req.params.postId })
       .populate('user', 'name username profilePicture')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: 1 });
     res.json(comments);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -85,17 +83,26 @@ const replyToComment = async (req, res) => {
     const parentCommentId = req.params.id;
     const { text } = req.body;
 
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: 'Reply text is required' });
+    }
+
     const parentComment = await Comment.findById(parentCommentId);
     if (!parentComment) {
       return res.status(404).json({ message: 'Parent comment not found' });
     }
 
-    const reply = await Comment.create({
+    let reply = await Comment.create({
       post: parentComment.post,
       user: req.user._id,
-      text,
+      text: text.trim(),
       parentComment: parentCommentId
     });
+
+    // Also add to post comments array
+    await Post.findByIdAndUpdate(parentComment.post, { $push: { comments: reply._id } });
+
+    reply = await reply.populate('user', 'name username profilePicture');
 
     // Notify parent comment owner
     if (parentComment.user.toString() !== req.user._id.toString()) {
@@ -110,17 +117,14 @@ const replyToComment = async (req, res) => {
           message: `${currentUser.name} replied to your comment.`
         });
 
-        const targetSocketId = socket.getSocketId(parentComment.user);
-        if (targetSocketId) {
-          socket.getIO().to(targetSocketId).emit('notification', {
-            _id: notification._id,
-            sender: { _id: currentUser._id, name: currentUser.name, profilePicture: currentUser.profilePicture },
-            type: 'reply',
-            message: notification.message,
-            relatedPost: parentComment.post,
-            createdAt: notification.createdAt
-          });
-        }
+        socket.emitToUser(parentComment.user, 'notification', {
+          _id: notification._id,
+          sender: { _id: currentUser._id, name: currentUser.name, profilePicture: currentUser.profilePicture },
+          type: 'reply',
+          message: notification.message,
+          relatedPost: parentComment.post,
+          createdAt: notification.createdAt
+        });
       }
     }
 
@@ -145,6 +149,8 @@ const deleteComment = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to delete this comment' });
     }
 
+    // Cascade delete any child replies
+    await Comment.deleteMany({ parentComment: comment._id });
     await comment.deleteOne();
     
     // Also remove from post

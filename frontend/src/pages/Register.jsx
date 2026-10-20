@@ -84,7 +84,7 @@ const Register = () => {
                 <input
                   type="text"
                   className="input input-bordered w-full pl-12 h-12 bg-base-200 focus:bg-base-100 transition-colors"
-                  placeholder="John Doe"
+                  placeholder="Enter your full name"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -103,7 +103,7 @@ const Register = () => {
                 <input
                   type="text"
                   className="input input-bordered w-full pl-12 h-12 bg-base-200 focus:bg-base-100 transition-colors"
-                  placeholder="johndoe123"
+                  placeholder="Choose a username"
                   required
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -122,7 +122,7 @@ const Register = () => {
                 <input
                   type="email"
                   className="input input-bordered w-full pl-12 h-12 bg-base-200 focus:bg-base-100 transition-colors"
-                  placeholder="you@example.com"
+                  placeholder="Enter your email address"
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -142,7 +142,7 @@ const Register = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     className="input input-bordered w-full pl-12 pr-12 h-12 bg-base-200 focus:bg-base-100 transition-colors"
-                    placeholder="••••••••"
+                    placeholder="Create a password"
                     required
                     minLength={6}
                     value={formData.password}
@@ -169,7 +169,7 @@ const Register = () => {
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     className="input input-bordered w-full pl-12 pr-12 h-12 bg-base-200 focus:bg-base-100 transition-colors"
-                    placeholder="••••••••"
+                    placeholder="Re-enter your password"
                     required
                     minLength={6}
                     value={formData.confirmPassword}

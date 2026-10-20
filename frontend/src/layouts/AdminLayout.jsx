@@ -129,6 +129,9 @@ const AdminLayout = () => {
                   <div className="text-xs opacity-60">Admin</div>
                 </div>
               </div>
+              <Link to="/" className="btn btn-ghost btn-sm w-full gap-2 mb-2 text-primary font-semibold">
+                ← Community Feed
+              </Link>
               <button onClick={handleLogout} className="btn btn-outline btn-error w-full gap-2">
                 <ArrowLeftOnRectangleIcon className="w-5 h-5" />
                 Logout

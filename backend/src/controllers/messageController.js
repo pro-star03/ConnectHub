@@ -7,26 +7,32 @@ const socket = require('../socket');
 // @access  Private
 const sendMessage = async (req, res) => {
   try {
-    const { receiverId, message } = req.body;
+    const { receiverId, message, media } = req.body;
 
-    if (!receiverId || !message) {
-      return res.status(400).json({ message: 'Receiver ID and message are required' });
+    if (!receiverId || (!message && !media)) {
+      return res.status(400).json({ message: 'Receiver and either message text or media are required' });
     }
 
-    const newMessage = await Message.create({
+    let newMessage = await Message.create({
       sender: req.user._id,
       receiver: receiverId,
-      message
+      message: message || '',
+      media: media || ''
     });
 
-    const targetSocketId = socket.getSocketId(receiverId);
-    if (targetSocketId) {
-      const currentUser = await User.findById(req.user._id);
-      socket.getIO().to(targetSocketId).emit('newMessage', {
-        ...newMessage.toObject(),
-        senderData: { _id: currentUser._id, name: currentUser.name, profilePicture: currentUser.profilePicture }
-      });
-    }
+    newMessage = await newMessage.populate([
+      { path: 'sender', select: 'name username profilePicture' },
+      { path: 'receiver', select: 'name username profilePicture' }
+    ]);
+
+    socket.emitToUser(receiverId, 'newMessage', {
+      ...newMessage.toObject(),
+      senderData: {
+        _id: req.user._id,
+        name: req.user.name,
+        profilePicture: req.user.profilePicture
+      }
+    });
 
     res.status(201).json(newMessage);
   } catch (error) {
@@ -39,14 +45,50 @@ const sendMessage = async (req, res) => {
 // @access  Private
 const getMessages = async (req, res) => {
   try {
+    const targetUserId = req.params.userId;
+    const currentUserId = req.user._id;
+
+    // Mark unread messages sent to me as read
+    const updated = await Message.updateMany(
+      { sender: targetUserId, receiver: currentUserId, read: false },
+      { $set: { read: true, readAt: new Date() } }
+    );
+
+    if (updated.modifiedCount > 0) {
+      socket.emitToUser(targetUserId, 'messagesRead', { readerId: currentUserId.toString() });
+    }
+
     const messages = await Message.find({
       $or: [
-        { sender: req.user._id, receiver: req.params.userId },
-        { sender: req.params.userId, receiver: req.user._id }
+        { sender: currentUserId, receiver: targetUserId },
+        { sender: targetUserId, receiver: currentUserId }
       ]
-    }).sort({ createdAt: 1 });
+    })
+      .populate('sender', 'name username profilePicture')
+      .populate('receiver', 'name username profilePicture')
+      .sort({ createdAt: 1 });
 
     res.json(messages);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Mark conversation as read
+// @route   PUT /api/messages/read/:userId
+// @access  Private
+const markConversationRead = async (req, res) => {
+  try {
+    const targetUserId = req.params.userId;
+    const currentUserId = req.user._id;
+
+    await Message.updateMany(
+      { sender: targetUserId, receiver: currentUserId, read: false },
+      { $set: { read: true, readAt: new Date() } }
+    );
+
+    socket.emitToUser(targetUserId, 'messagesRead', { readerId: currentUserId.toString() });
+    res.json({ message: 'Conversation marked as read' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -58,29 +100,37 @@ const getMessages = async (req, res) => {
 const getConversations = async (req, res) => {
   try {
     const userId = req.user._id;
-    // Find all messages involving the current user
+
     const messages = await Message.find({
       $or: [{ sender: userId }, { receiver: userId }]
-    }).sort({ createdAt: -1 })
+    })
+      .sort({ createdAt: -1 })
       .populate('sender', 'name username profilePicture')
       .populate('receiver', 'name username profilePicture');
 
     const conversationsMap = new Map();
 
-    messages.forEach(msg => {
-      // Determine the other user in the conversation
-      const otherUser = msg.sender._id.toString() === userId.toString() ? msg.receiver : msg.sender;
-      
-      // Keep only the latest message for each user
-      if (!conversationsMap.has(otherUser._id.toString())) {
-        conversationsMap.set(otherUser._id.toString(), {
+    for (const msg of messages) {
+      if (!msg.sender || !msg.receiver) continue;
+
+      const isSenderMe = msg.sender._id.toString() === userId.toString();
+      const otherUser = isSenderMe ? msg.receiver : msg.sender;
+      if (!otherUser || !otherUser._id) continue;
+
+      const otherUserIdStr = otherUser._id.toString();
+
+      if (!conversationsMap.has(otherUserIdStr)) {
+        conversationsMap.set(otherUserIdStr, {
           user: otherUser,
-          lastMessage: msg.message,
+          lastMessage: msg.message || (msg.media ? '📷 Photo' : ''),
           createdAt: msg.createdAt,
-          isUnread: msg.receiver._id.toString() === userId.toString() && !msg.read // if you add 'read' field
+          unreadCount: !isSenderMe && !msg.read ? 1 : 0
         });
+      } else if (!isSenderMe && !msg.read) {
+        const existing = conversationsMap.get(otherUserIdStr);
+        existing.unreadCount += 1;
       }
-    });
+    }
 
     const conversations = Array.from(conversationsMap.values());
     res.json(conversations);
@@ -89,4 +139,9 @@ const getConversations = async (req, res) => {
   }
 };
 
-module.exports = { sendMessage, getMessages, getConversations };
+module.exports = {
+  sendMessage,
+  getMessages,
+  getConversations,
+  markConversationRead
+};

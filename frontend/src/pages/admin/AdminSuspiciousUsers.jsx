@@ -17,10 +17,6 @@ const AdminSuspiciousUsers = () => {
   const [suspiciousUsers, setSuspiciousUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchSuspiciousUsers();
-  }, []);
-
   const fetchSuspiciousUsers = async () => {
     try {
       const [usersRes, reportsRes] = await Promise.all([
@@ -56,6 +52,10 @@ const AdminSuspiciousUsers = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchSuspiciousUsers();
+  }, []);
 
   const handleBlockUser = async (id, isCurrentlyBlocked) => {
     if (!window.confirm(`Are you sure you want to ${isCurrentlyBlocked ? 'unblock' : 'block'} this user?`)) return;

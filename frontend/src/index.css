@@ -5,26 +5,99 @@
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
+/* Beige & Taupe Palette (#F1EAE0 · #D8CABB · #65594D) */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --color-base-100: #FAF7F2;
+  --color-base-200: #F1EAE0;
+  --color-base-300: #D8CABB;
+  --color-base-content: #362E27;
+  --color-primary: #65594D;
+  --color-primary-content: #FAF7F2;
+  --color-secondary: #8C7A6B;
+  --color-secondary-content: #FAF7F2;
+  --color-accent: #A3907C;
+  --color-accent-content: #FAF7F2;
+  --color-neutral: #4D4238;
+  --color-neutral-content: #F1EAE0;
+  --color-info: #5E7788;
+  --color-info-content: #FAF7F2;
+  --color-success: #557A59;
+  --color-success-content: #FAF7F2;
+  --color-warning: #C48446;
+  --color-warning-content: #FAF7F2;
+  --color-error: #B54D47;
+  --color-error-content: #FAF7F2;
+  --radius-selector: 0.85rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.15rem;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-base-100: #201B17;
+  --color-base-200: #171310;
+  --color-base-300: #362E27;
+  --color-base-content: #F1EAE0;
+  --color-primary: #D8CABB;
+  --color-primary-content: #201B17;
+  --color-secondary: #A3907C;
+  --color-secondary-content: #171310;
+  --color-accent: #BFA894;
+  --color-accent-content: #171310;
+  --color-neutral: #2A221C;
+  --color-neutral-content: #F1EAE0;
+  --color-info: #7A96A7;
+  --color-info-content: #171310;
+  --color-success: #6E9473;
+  --color-success-content: #171310;
+  --color-warning: #D99858;
+  --color-warning-content: #171310;
+  --color-error: #C85F59;
+  --color-error-content: #171310;
+}
+
 body {
   font-family: var(--font-sans);
-  background-color: var(--fallback-b2,oklch(var(--b2)/1));
+  background-color: var(--color-base-200);
+  color: var(--color-base-content);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 .card {
-  border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  border: 1px solid var(--fallback-b2,oklch(var(--b2)/0.5));
+  border-radius: 1.25rem;
+  box-shadow: 0 2px 8px 0 rgba(101, 89, 77, 0.05), 0 1px 2px 0 rgba(101, 89, 77, 0.03);
+  border: 1px solid var(--color-base-300);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-theme="dark"] .card {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid var(--fallback-b3,oklch(var(--b3)/0.3));
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(216, 202, 187, 0.12);
 }
 
 .btn {
-  border-radius: 0.75rem;
+  border-radius: 0.85rem;
   font-weight: 600;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.glass-nav {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background-color: color-mix(in srgb, var(--color-base-100) 85%, transparent);
+  border-bottom: 1px solid var(--color-base-300);
+}
+
+[data-theme="dark"] .glass-nav {
+  background-color: color-mix(in srgb, var(--color-base-100) 85%, transparent);
+  border-bottom: 1px solid rgba(216, 202, 187, 0.12);
 }
 
 .pb-safe {
@@ -37,4 +110,48 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Custom sleek scrollbar for chats and long lists */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.45);
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.online-pulse {
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes float-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.float-hover:hover {
+  animation: float-subtle 1.8s ease-in-out infinite;
+}
+
+.hashtag-link {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+.hashtag-link:hover {
+  text-decoration: underline;
 }

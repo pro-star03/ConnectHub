@@ -1,6 +1,6 @@
 const Story = require('../models/Story');
-const fs = require('fs');
-const path = require('path');
+const StoryView = require('../models/StoryView');
+const User = require('../models/User');
 
 exports.createStory = async (req, res) => {
   try {
@@ -13,11 +13,12 @@ exports.createStory = async (req, res) => {
     const story = new Story({
       user: req.user._id,
       image,
-      caption,
+      caption: caption || '',
       expiresAt
     });
 
     await story.save();
+    await story.populate('user', 'username name profilePicture');
     res.status(201).json(story);
   } catch (error) {
     res.status(500).json({ message: 'Error creating story', error: error.message });
@@ -29,16 +30,14 @@ exports.getActiveStories = async (req, res) => {
     const now = new Date();
     
     // Fetch only stories from self and followed users
-    const User = require('../models/User');
     const currentUser = await User.findById(req.user._id);
-    const allowedIds = [req.user._id, ...currentUser.following];
+    const allowedIds = [req.user._id, ...(currentUser?.following || [])];
 
     const stories = await Story.find({ 
       user: { $in: allowedIds },
       expiresAt: { $gt: now } 
     }).populate('user', 'username name profilePicture').sort({ createdAt: 1 });
 
-    const StoryView = require('../models/StoryView');
     const storyIds = stories.map(s => s._id);
     const views = await StoryView.find({
       story: { $in: storyIds },
@@ -49,17 +48,18 @@ exports.getActiveStories = async (req, res) => {
 
     const grouped = {};
     for (const story of stories) {
-       const userId = story.user._id.toString();
-       if (!grouped[userId]) {
-         grouped[userId] = {
-           user: story.user,
-           stories: []
-         };
-       }
-       grouped[userId].stories.push({
-         ...story.toObject(),
-         isViewed: viewedStoryIds.has(story._id.toString())
-       });
+      if (!story.user) continue;
+      const userId = story.user._id.toString();
+      if (!grouped[userId]) {
+        grouped[userId] = {
+          user: story.user,
+          stories: []
+        };
+      }
+      grouped[userId].stories.push({
+        ...story.toObject(),
+        isViewed: viewedStoryIds.has(story._id.toString())
+      });
     }
 
     const result = [];
@@ -95,7 +95,6 @@ exports.getActiveStories = async (req, res) => {
 
 exports.viewStory = async (req, res) => {
   try {
-    const StoryView = require('../models/StoryView');
     const existing = await StoryView.findOne({ story: req.params.id, viewer: req.user._id });
     if (!existing) {
       await StoryView.create({ story: req.params.id, viewer: req.user._id });
@@ -103,6 +102,25 @@ exports.viewStory = async (req, res) => {
     res.json({ message: 'Story viewed' });
   } catch (error) {
     res.status(500).json({ message: 'Error viewing story', error: error.message });
+  }
+};
+
+exports.getStoryViewers = async (req, res) => {
+  try {
+    const story = await Story.findById(req.params.id);
+    if (!story) return res.status(404).json({ message: 'Story not found' });
+
+    if (story.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to view viewers of this story' });
+    }
+
+    const viewers = await StoryView.find({ story: req.params.id })
+      .populate('viewer', 'name username profilePicture')
+      .sort({ createdAt: -1 });
+
+    res.json(viewers);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching story viewers', error: error.message });
   }
 };
 
@@ -116,6 +134,7 @@ exports.deleteStory = async (req, res) => {
     }
     
     await Story.findByIdAndDelete(req.params.id);
+    await StoryView.deleteMany({ story: req.params.id });
     res.json({ message: 'Story removed' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting story', error: error.message });

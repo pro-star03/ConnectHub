@@ -46,7 +46,10 @@ const socket = require('./socket');
 // Initialize socket.io
 socket.init(server);
 
-connectDB().then(() => {
+const { ensureFixedAdminAccount } = require('./config/adminConfig');
+
+connectDB().then(async () => {
+  await ensureFixedAdminAccount();
   server.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
   });
