@@ -14,6 +14,8 @@ const {
   getAllPosts,
   togglePinPost,
   adminDeletePost,
+  getAllStories,
+  adminDeleteStory,
   getAllReports,
   resolveReport,
   dismissReport,
@@ -41,10 +43,14 @@ router.put('/users/:id/block', blockUser);
 router.put('/users/:id/unblock', unblockUser);
 router.delete('/users/:id', adminDeleteUser);
 
-// Content Moderation
+// Content Moderation (Posts)
 router.get('/posts', getAllPosts);
 router.put('/posts/:id/pin', togglePinPost);
 router.delete('/posts/:id', adminDeletePost);
+
+// Story Moderation
+router.get('/stories', getAllStories);
+router.delete('/stories/:id', adminDeleteStory);
 
 // Safety & Reports
 router.get('/reports', getAllReports);

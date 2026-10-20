@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, Trash2, Eye, Send } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, ChevronLeft, ChevronRight, Trash2, Eye, Send, Plus } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import { deleteStory, viewStory, getStoryViewers } from '../services/storyService';
 import { sendMessage } from '../services/messageService';
@@ -8,6 +9,7 @@ import { formatTimeAgo } from '../utils/dateFormatter';
 const STORY_REACTIONS = ['🔥', '❤️', '👏', '😂', '😍', '🙌'];
 
 const StoryViewer = ({ group, onClose, onDelete }) => {
+  const navigate = useNavigate();
   const { stories } = group;
   
   const firstUnviewed = stories.findIndex(s => !s.isViewed);
@@ -30,6 +32,7 @@ const StoryViewer = ({ group, onClose, onDelete }) => {
   const storyAuthorId = (typeof currentStory?.user === 'object' ? currentStory?.user?._id : currentStory?.user)?.toString();
   const myUserId = user?._id?.toString();
   const isOwnStory = storyAuthorId === myUserId;
+  const isAdmin = Boolean(user?.isAdmin || user?.role === 'admin');
 
   const handleNext = useCallback(() => {
     if (currentIndex < stories.length - 1) {
@@ -150,8 +153,18 @@ const StoryViewer = ({ group, onClose, onDelete }) => {
         </div>
 
         <div className="flex items-center gap-2">
-          {isOwnStory && (
+          {isOwnStory ? (
             <>
+              <button 
+                onClick={() => {
+                  onClose();
+                  navigate('/create-story');
+                }} 
+                className="btn btn-ghost btn-circle btn-sm text-white hover:bg-white/20"
+                title="Add to story"
+              >
+                <Plus size={20} className="stroke-[2.5]" />
+              </button>
               <button 
                 onClick={handleOpenViewers} 
                 className="btn btn-ghost btn-circle btn-sm text-white hover:bg-white/20"
@@ -167,7 +180,25 @@ const StoryViewer = ({ group, onClose, onDelete }) => {
                 <Trash2 size={20} />
               </button>
             </>
-          )}
+          ) : isAdmin ? (
+            <>
+              <span className="badge badge-warning badge-xs uppercase font-bold py-1.5 px-2 text-[10px] drop-shadow">Admin</span>
+              <button 
+                onClick={handleOpenViewers} 
+                className="btn btn-ghost btn-circle btn-sm text-white hover:bg-white/20"
+                title="Viewers (Admin)"
+              >
+                <Eye size={20} />
+              </button>
+              <button 
+                onClick={handleDelete} 
+                className="btn btn-ghost btn-circle btn-sm text-error hover:bg-white/20"
+                title="Delete Story (Admin)"
+              >
+                <Trash2 size={20} />
+              </button>
+            </>
+          ) : null}
           <button onClick={onClose} className="btn btn-ghost btn-circle btn-sm text-white hover:bg-white/20">
             <X size={22} />
           </button>
@@ -222,8 +253,29 @@ const StoryViewer = ({ group, onClose, onDelete }) => {
           </div>
         )}
 
-        {/* Story Reply Bar (for non-owners) */}
-        {!isOwnStory && (
+        {/* Bottom Control Bar */}
+        {isOwnStory ? (
+          <div className="absolute bottom-4 left-0 right-0 px-4 z-[113] flex justify-between items-center pointer-events-auto">
+            <button
+              onClick={handleOpenViewers}
+              className="btn btn-sm rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 hover:bg-black/80 gap-1.5 px-4 text-xs font-semibold shadow-md"
+            >
+              <Eye size={16} />
+              <span>{currentStory?.viewsCount !== undefined ? `${currentStory.viewsCount} views` : 'Viewers'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                onClose();
+                navigate('/create-story');
+              }}
+              className="btn btn-sm btn-primary rounded-full gap-1.5 px-4 shadow-lg text-xs font-bold hover:scale-105 transition-transform"
+            >
+              <Plus size={16} className="stroke-[2.5]" />
+              <span>Add to story</span>
+            </button>
+          </div>
+        ) : (
           <div className="absolute bottom-4 left-0 right-0 px-4 z-[113]">
             {replySuccess ? (
               <div className="bg-success text-success-content text-xs font-bold py-2 px-4 rounded-full text-center">

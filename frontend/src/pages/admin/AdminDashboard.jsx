@@ -217,13 +217,16 @@ const AdminDashboard = () => {
           <MessageSquare className="w-5 h-5 text-accent opacity-80" />
         </div>
 
-        <div className="bg-base-100 p-4 rounded-xl border border-base-200 flex items-center justify-between">
+        <Link 
+          to="/admin/stories" 
+          className="bg-base-100 p-4 rounded-xl border border-base-200 hover:border-secondary hover:bg-secondary/5 transition-all flex items-center justify-between group"
+        >
           <div>
-            <div className="text-xs text-base-content/60">Active Stories</div>
+            <div className="text-xs text-base-content/60 group-hover:text-secondary font-semibold transition-colors">Active Stories</div>
             <div className="text-xl font-bold mt-0.5">{stats?.totalStories ?? 0}</div>
           </div>
-          <Layers className="w-5 h-5 text-secondary opacity-80" />
-        </div>
+          <Layers className="w-5 h-5 text-secondary opacity-80 group-hover:scale-110 transition-transform" />
+        </Link>
 
         <div className="bg-base-100 p-4 rounded-xl border border-base-200 flex items-center justify-between">
           <div>
@@ -270,6 +273,17 @@ const AdminDashboard = () => {
                 <div className="text-xs text-base-content/60">Pin announcements, delete posts</div>
               </div>
               <ArrowRight className="w-4 h-4 text-base-content/40 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+            </Link>
+
+            <Link 
+              to="/admin/stories" 
+              className="p-4 rounded-xl border border-base-200 hover:border-secondary hover:bg-secondary/5 transition-all flex items-center justify-between group"
+            >
+              <div>
+                <div className="font-bold text-sm group-hover:text-secondary transition-colors">Story Desk</div>
+                <div className="text-xs text-base-content/60">Live media & story oversight</div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-base-content/40 group-hover:text-secondary group-hover:translate-x-1 transition-all" />
             </Link>
 
             <Link 

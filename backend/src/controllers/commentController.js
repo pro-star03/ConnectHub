@@ -20,6 +20,15 @@ const addComment = async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
+    const postOwner = await User.findById(post.user).select('blockedUsers');
+    const currentUser = await User.findById(req.user._id).select('blockedUsers');
+    if (
+      (postOwner?.blockedUsers || []).some(id => id.toString() === req.user._id.toString()) ||
+      (currentUser?.blockedUsers || []).some(id => id.toString() === post.user.toString())
+    ) {
+      return res.status(403).json({ message: 'Cannot comment on this post' });
+    }
+
     let comment = await Comment.create({
       post: postId,
       user: req.user._id,

@@ -19,6 +19,10 @@ export const getPosts = () => api.get('/admin/posts');
 export const togglePinPost = (postId) => api.put(`/admin/posts/${postId}/pin`);
 export const adminDeletePost = (postId) => api.delete(`/admin/posts/${postId}`);
 
+// Stories Moderation
+export const getAdminStories = (params = {}) => api.get('/admin/stories', { params });
+export const adminDeleteStory = (storyId) => api.delete(`/admin/stories/${storyId}`);
+
 // Reports & Safety
 export const getReports = () => api.get('/admin/reports');
 export const resolveReport = (id, status) => api.put(`/admin/reports/${id}/resolve`, { status });

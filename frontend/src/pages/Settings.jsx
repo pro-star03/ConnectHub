@@ -2,10 +2,10 @@ import { useContext, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { deactivateAccount, deleteAccount, updateUserProfile, submitFeedback } from '../services/userService';
-import { ChevronLeft, User, Lock, Bell, LogOut, UserMinus, Trash2, MessageSquare } from 'lucide-react';
+import { ChevronLeft, User, Lock, Bell, LogOut, UserMinus, Trash2, MessageSquare, UserX, ChevronRight } from 'lucide-react';
 
 const Settings = () => {
-  const { user, logoutUser, updateUser } = useContext(AuthContext);
+  const { user, logoutUser, updateUser, blockedUserIds } = useContext(AuthContext);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -152,6 +152,26 @@ const Settings = () => {
                 <option value="dark">Dark</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        {/* Privacy & Safety Section */}
+        <div>
+          <h2 className="text-sm font-bold text-base-content/50 uppercase tracking-wider mb-2 px-2">Privacy & Safety</h2>
+          <div className="bg-base-100 border border-base-200 rounded-2xl overflow-hidden">
+            <Link to="/settings/blocked" className="flex items-center gap-3 p-4 hover:bg-base-200 transition-colors">
+              <UserX size={20} className="text-error" />
+              <div className="flex-1">
+                <span className="font-medium block">Block List</span>
+                <span className="text-xs text-base-content/50">Manage blocked users</span>
+              </div>
+              {blockedUserIds?.size > 0 && (
+                <span className="badge badge-sm badge-error badge-outline font-semibold">
+                  {blockedUserIds.size}
+                </span>
+              )}
+              <ChevronRight size={18} className="text-base-content/40" />
+            </Link>
           </div>
         </div>
 

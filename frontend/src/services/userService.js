@@ -10,3 +10,6 @@ export const deactivateAccount = () => api.post('/users/deactivate');
 export const deleteAccount = () => api.delete('/users/delete');
 export const changePassword = (data) => api.put('/users/change-password', data);
 export const submitFeedback = (data) => api.post('/users/feedback', data);
+export const blockUser = (userId) => api.post(`/users/${userId}/block`);
+export const unblockUser = (userId) => api.post(`/users/${userId}/unblock`);
+export const getBlockedUsers = () => api.get('/users/blocked');

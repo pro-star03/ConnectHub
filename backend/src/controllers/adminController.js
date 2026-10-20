@@ -4,6 +4,7 @@ const Report = require('../models/Report');
 const Feedback = require('../models/Feedback');
 const Comment = require('../models/Comment');
 const Story = require('../models/Story');
+const StoryView = require('../models/StoryView');
 const Message = require('../models/Message');
 const Notification = require('../models/Notification');
 const ActivityLog = require('../models/ActivityLog');
@@ -536,6 +537,88 @@ const updateAdminSettings = async (req, res) => {
   }
 };
 
+// @desc    Get all stories for admin moderation (active & expired)
+// @route   GET /api/admin/stories
+// @access  Private/Admin
+const getAllStories = async (req, res) => {
+  try {
+    const { status = 'all', search } = req.query;
+    const now = new Date();
+
+    let filter = {};
+    if (status === 'active') {
+      filter.expiresAt = { $gt: now };
+    } else if (status === 'expired') {
+      filter.expiresAt = { $lte: now };
+    }
+
+    const stories = await Story.find(filter)
+      .populate('user', 'name username email profilePicture isVerified')
+      .sort({ createdAt: -1 });
+
+    const storyIds = stories.map(s => s._id);
+    const views = await StoryView.find({ story: { $in: storyIds } })
+      .populate('viewer', 'name username profilePicture');
+
+    const viewsMap = {};
+    for (const v of views) {
+      const sId = v.story.toString();
+      if (!viewsMap[sId]) viewsMap[sId] = [];
+      viewsMap[sId].push(v);
+    }
+
+    let result = stories.map(s => {
+      const isExpired = new Date(s.expiresAt) <= now;
+      const storyViews = viewsMap[s._id.toString()] || [];
+      return {
+        ...s.toObject(),
+        viewsCount: storyViews.length,
+        viewers: storyViews.map(v => v.viewer).filter(Boolean),
+        isExpired
+      };
+    });
+
+    if (search) {
+      const term = search.toLowerCase();
+      result = result.filter(s =>
+        (s.caption && s.caption.toLowerCase().includes(term)) ||
+        (s.user?.username && s.user.username.toLowerCase().includes(term)) ||
+        (s.user?.name && s.user.name.toLowerCase().includes(term))
+      );
+    }
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Admin delete any story
+// @route   DELETE /api/admin/stories/:id
+// @access  Private/Admin
+const adminDeleteStory = async (req, res) => {
+  try {
+    const story = await Story.findById(req.params.id).populate('user', 'username');
+    if (!story) return res.status(404).json({ message: 'Story not found' });
+
+    const storyId = story._id;
+    const authorUsername = story.user?.username || 'unknown';
+
+    await Story.findByIdAndDelete(storyId);
+    await StoryView.deleteMany({ story: storyId });
+
+    await logActivity(
+      'STORY_REMOVED',
+      `Admin removed story ${storyId} by @${authorUsername}`,
+      req.user._id
+    );
+
+    res.json({ message: 'Story deleted successfully by administrator' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getSystemHealth,
@@ -549,6 +632,8 @@ module.exports = {
   getAllPosts,
   togglePinPost,
   adminDeletePost,
+  getAllStories,
+  adminDeleteStory,
   getAllReports,
   resolveReport,
   dismissReport,

@@ -17,6 +17,7 @@ import CreatePost from './pages/CreatePost';
 import CreateStory from './pages/CreateStory';
 import CreateOptions from './pages/CreateOptions';
 import Settings from './pages/Settings';
+import BlockedUsers from './pages/BlockedUsers';
 import ChangePassword from './pages/ChangePassword';
 
 // Admin imports
@@ -25,8 +26,8 @@ import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminPosts from './pages/admin/AdminPosts';
+import AdminStories from './pages/admin/AdminStories';
 import AdminReports from './pages/admin/AdminReports';
-import AdminSuspiciousUsers from './pages/admin/AdminSuspiciousUsers';
 import AdminFeedback from './pages/admin/AdminFeedback';
 import AdminSettings from './pages/admin/AdminSettings';
 
@@ -46,8 +47,8 @@ function App() {
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="posts" element={<AdminPosts />} />
+          <Route path="stories" element={<AdminStories />} />
           <Route path="reports" element={<AdminReports />} />
-          <Route path="suspicious-users" element={<AdminSuspiciousUsers />} />
           <Route path="feedback" element={<AdminFeedback />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
@@ -67,6 +68,8 @@ function App() {
           <Route path="create-story" element={<CreateStory />} />
 
           <Route path="settings" element={<Settings />} />
+          <Route path="settings/blocked" element={<BlockedUsers />} />
+          <Route path="blocked-users" element={<BlockedUsers />} />
           <Route path="change-password" element={<ChangePassword />} />
           <Route path="suggestions" element={<Suggestions />} />
         </Route>

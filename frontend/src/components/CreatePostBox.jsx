@@ -7,7 +7,7 @@ import { Image, Send, X, BarChart2, Smile, Plus, Trash2 } from 'lucide-react';
 const QUICK_EMOJIS = ['✨', '🚀', '🔥', '❤️', '👏', '💡', '☕', '🎉'];
 const POPULAR_TAGS = ['ConnectHub', 'Tech', 'Design', 'Community', 'Innovation'];
 
-const CreatePostBox = ({ onPostCreated }) => {
+const CreatePostBox = ({ onPostCreated, isModal = false, autoFocus = false }) => {
   const { user } = useContext(AuthContext);
   const [content, setContent] = useState('');
   const [image, setImage] = useState(null);
@@ -102,8 +102,8 @@ const CreatePostBox = ({ onPostCreated }) => {
   };
 
   return (
-    <div className="card bg-base-100 border border-base-200/90 rounded-2xl shadow-sm mb-6 transition-all hover:border-base-300">
-      <div className="card-body p-4 sm:p-5">
+    <div className={`card bg-base-100 ${isModal ? 'border-none shadow-none mb-0' : 'border border-base-200/90 rounded-2xl shadow-sm mb-6'} transition-all`}>
+      <div className={`card-body ${isModal ? 'p-1 sm:p-2' : 'p-4 sm:p-5'}`}>
         <form onSubmit={handleSubmit}>
           <div className="flex gap-3">
             <div className="avatar hidden sm:flex shrink-0">
@@ -117,9 +117,10 @@ const CreatePostBox = ({ onPostCreated }) => {
             </div>
             <div className="flex-1 min-w-0">
               <textarea
+                autoFocus={autoFocus}
                 className="textarea textarea-ghost w-full p-2 text-base resize-none focus:outline-none focus:bg-base-200/40 rounded-xl transition-all"
                 placeholder="What's happening in your world?"
-                rows={content.length > 80 ? 4 : 2}
+                rows={content.length > 80 ? 4 : (isModal ? 3 : 2)}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
               ></textarea>

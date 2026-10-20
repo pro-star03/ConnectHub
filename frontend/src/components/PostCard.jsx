@@ -13,17 +13,18 @@ import {
   Check, 
   Share2,
   BadgeCheck,
-  Pin
+  Pin,
+  UserX
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatTimeAgo } from '../utils/dateFormatter';
 import { likePost, unlikePost, toggleSavePost, deletePost, votePoll } from '../services/postService';
-import { followUser, unfollowUser } from '../services/userService';
+import { followUser, unfollowUser, blockUser } from '../services/userService';
 import { reportPost } from '../services/reportService';
 import { sendMessage, getConversations } from '../services/messageService';
 
 const PostCard = ({ post, onPostDeleted }) => {
-  const { user, followingIds, addFollowing, removeFollowing } = useContext(AuthContext);
+  const { user, followingIds, addFollowing, removeFollowing, addBlockedId } = useContext(AuthContext);
   const { isUserOnline } = useContext(SocketContext);
 
   const userIdStr = user?._id?.toString();
@@ -179,6 +180,24 @@ const PostCard = ({ post, onPostDeleted }) => {
     }
   };
 
+  const handleBlockAuthor = async () => {
+    if (!authorIdStr) return;
+    const confirmBlock = window.confirm(`Block @${authorUsername}? You will no longer see posts or receive messages from this user.`);
+    if (!confirmBlock) return;
+
+    try {
+      await blockUser(authorIdStr);
+      addBlockedId(authorIdStr);
+      if (onPostDeleted) {
+        onPostDeleted(post._id);
+      }
+      alert(`@${authorUsername} has been blocked.`);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Failed to block user');
+    }
+  };
+
   // Clickable hashtags & mentions formatter
   const renderFormattedContent = (text) => {
     if (!text) return null;
@@ -301,14 +320,24 @@ const PostCard = ({ post, onPostDeleted }) => {
                   </button>
                 </li>
               ) : (
-                <li>
-                  <button 
-                    onClick={() => document.getElementById(`report_modal_${post._id}`)?.showModal()} 
-                    className="hover:bg-warning/10 text-warning"
-                  >
-                    <AlertTriangle size={16} /> Report Post
-                  </button>
-                </li>
+                <>
+                  <li>
+                    <button 
+                      onClick={() => document.getElementById(`report_modal_${post._id}`)?.showModal()} 
+                      className="hover:bg-warning/10 text-warning"
+                    >
+                      <AlertTriangle size={16} /> Report Post
+                    </button>
+                  </li>
+                  <li>
+                    <button 
+                      onClick={handleBlockAuthor} 
+                      className="hover:bg-error/10 text-error"
+                    >
+                      <UserX size={16} /> Block @{authorUsername}
+                    </button>
+                  </li>
+                </>
               )}
             </ul>
           </div>

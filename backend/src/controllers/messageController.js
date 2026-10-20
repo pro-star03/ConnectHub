@@ -13,6 +13,20 @@ const sendMessage = async (req, res) => {
       return res.status(400).json({ message: 'Receiver and either message text or media are required' });
     }
 
+    const receiverUser = await User.findById(receiverId).select('blockedUsers');
+    const currentUser = await User.findById(req.user._id).select('blockedUsers');
+
+    if (!receiverUser) {
+      return res.status(404).json({ message: 'Receiver not found' });
+    }
+
+    const isBlockedByReceiver = (receiverUser.blockedUsers || []).some(id => id.toString() === req.user._id.toString());
+    const isBlockedBySender = (currentUser.blockedUsers || []).some(id => id.toString() === receiverId.toString());
+
+    if (isBlockedByReceiver || isBlockedBySender) {
+      return res.status(403).json({ message: 'Cannot send message. This user is blocked.' });
+    }
+
     let newMessage = await Message.create({
       sender: req.user._id,
       receiver: receiverId,

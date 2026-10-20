@@ -58,14 +58,32 @@ const getPosts = async (req, res) => {
     const { feed, tag, search, page = 1, limit = 50 } = req.query;
     let query = {};
 
+    let blockedIds = [];
+    if (req.user) {
+      const currentUser = await User.findById(req.user._id).select('blockedUsers');
+      const blockedByOthers = await User.find({ blockedUsers: req.user._id }).select('_id');
+      blockedIds = [
+        ...(currentUser?.blockedUsers || []).map(id => id.toString()),
+        ...blockedByOthers.map(u => u._id.toString())
+      ];
+    }
+
     if (tag) {
       query.tags = tag.toLowerCase().replace(/^#/, '');
     } else if (search) {
       query.content = { $regex: search, $options: 'i' };
     } else if (feed === 'following' && req.user) {
       const currentUser = await User.findById(req.user._id).select('following');
-      const allowedUsers = [req.user._id, ...(currentUser?.following || [])];
+      let allowedUsers = [req.user._id, ...(currentUser?.following || [])];
+      if (blockedIds.length > 0) {
+        const blockedSet = new Set(blockedIds);
+        allowedUsers = allowedUsers.filter(id => !blockedSet.has(id.toString()));
+      }
       query.user = { $in: allowedUsers };
+    }
+
+    if (blockedIds.length > 0 && (!query.user || !query.user.$in)) {
+      query.user = { $nin: blockedIds };
     }
 
     let posts = await Post.find(query)
@@ -184,6 +202,17 @@ const likePost = async (req, res) => {
     if (!post) return res.status(404).json({ message: 'Post not found' });
 
     const userIdStr = req.user._id.toString();
+
+    // Check if author or current user is blocked
+    const postOwner = await User.findById(post.user).select('blockedUsers');
+    const currentUser = await User.findById(req.user._id).select('blockedUsers');
+    if (
+      (postOwner?.blockedUsers || []).some(id => id.toString() === userIdStr) ||
+      (currentUser?.blockedUsers || []).some(id => id.toString() === post.user.toString())
+    ) {
+      return res.status(403).json({ message: 'Cannot interact with a blocked user\'s post' });
+    }
+
     const alreadyLiked = post.likes.some(id => id.toString() === userIdStr);
 
     if (!alreadyLiked) {

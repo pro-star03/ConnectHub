@@ -5,6 +5,7 @@ import {
   Home, 
   User as UserIcon, 
   PlusSquare, 
+  PlusCircle,
   Bookmark, 
   Bell, 
   MessageSquare, 
@@ -89,14 +90,21 @@ const Sidebar = ({ unreadMessages = 0, unreadNotifications = 0 }) => {
         )}
       </nav>
 
-      {/* Quick Create Button */}
-      <div className="pt-4">
+      {/* Quick Create Buttons */}
+      <div className="pt-4 flex flex-col gap-2">
         <Link 
           to="/create-post" 
           className="btn btn-primary w-full rounded-2xl shadow-lg shadow-primary/25 gap-2 text-base font-bold"
         >
           <PlusSquare size={20} />
           <span>New Post</span>
+        </Link>
+        <Link 
+          to="/create-story" 
+          className="btn btn-outline btn-primary w-full rounded-2xl gap-2 text-sm font-semibold hover:!text-white"
+        >
+          <PlusCircle size={18} />
+          <span>Add Story</span>
         </Link>
       </div>
     </aside>

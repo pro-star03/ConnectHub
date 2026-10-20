@@ -1,10 +1,10 @@
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getMessages, sendMessage, getConversations, markConversationRead } from '../services/messageService';
-import { getUserProfile } from '../services/userService';
+import { getUserProfile, blockUser, unblockUser } from '../services/userService';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
-import { Send, ArrowLeft, Image as ImageIcon, Smile, X, Check, CheckCheck } from 'lucide-react';
+import { Send, ArrowLeft, Image as ImageIcon, Smile, X, Check, CheckCheck, UserX, UserCheck, ShieldAlert, MoreVertical } from 'lucide-react';
 import { formatTimeAgo } from '../utils/dateFormatter';
 import { imageToBase64 } from '../utils/imageToBase64';
 
@@ -12,7 +12,7 @@ const CHAT_EMOJIS = ['😊', '😂', '🔥', '👍', '❤️', '🎉', '👏', '
 
 const Messages = () => {
   const { userId } = useParams();
-  const { user: currentUser } = useContext(AuthContext);
+  const { user: currentUser, blockedUserIds, addBlockedId, removeBlockedId } = useContext(AuthContext);
   const { socket, isUserOnline } = useContext(SocketContext);
   
   const [messages, setMessages] = useState([]);
@@ -181,6 +181,37 @@ const Messages = () => {
     }
   };
 
+  const isTargetBlockedByMe = Boolean(
+    targetUser?.isBlockedByMe || (userId && blockedUserIds?.has(userId.toString()))
+  );
+  const isTargetBlockedByThem = Boolean(targetUser?.isBlockedByThem);
+  const isBlockedAny = isTargetBlockedByMe || isTargetBlockedByThem;
+
+  const handleToggleBlockTarget = async () => {
+    if (!targetUser) return;
+    if (isTargetBlockedByMe) {
+      if (!window.confirm(`Unblock @${targetUser.username}? You will be able to message each other again.`)) return;
+      try {
+        await unblockUser(targetUser._id);
+        removeBlockedId(targetUser._id);
+        setTargetUser(prev => ({ ...prev, isBlockedByMe: false }));
+      } catch (err) {
+        console.error(err);
+        alert(err.response?.data?.message || 'Failed to unblock user');
+      }
+    } else {
+      if (!window.confirm(`Block @${targetUser.username}? Messaging and viewing will be blocked.`)) return;
+      try {
+        await blockUser(targetUser._id);
+        addBlockedId(targetUser._id);
+        setTargetUser(prev => ({ ...prev, isBlockedByMe: true }));
+      } catch (err) {
+        console.error(err);
+        alert(err.response?.data?.message || 'Failed to block user');
+      }
+    }
+  };
+
   const isOnline = isUserOnline(userId);
   const targetAvatar = targetUser?.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(targetUser?.name || 'User')}&background=random`;
 
@@ -301,7 +332,55 @@ const Messages = () => {
                   </Link>
                 )}
               </div>
+
+              {targetUser && (
+                <div className="dropdown dropdown-end">
+                  <label tabIndex={0} className="btn btn-ghost btn-circle btn-sm">
+                    <MoreVertical size={18} />
+                  </label>
+                  <ul tabIndex={0} className="dropdown-content z-20 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-44 border border-base-200 text-xs">
+                    <li>
+                      <Link to={`/profile/${targetUser._id}`}>View Profile</Link>
+                    </li>
+                    <li>
+                      <button 
+                        onClick={handleToggleBlockTarget}
+                        className={isTargetBlockedByMe ? "text-success hover:bg-success/10 font-medium" : "text-error hover:bg-error/10 font-medium"}
+                      >
+                        {isTargetBlockedByMe ? (
+                          <><UserCheck size={15} /> Unblock User</>
+                        ) : (
+                          <><UserX size={15} /> Block User</>
+                        )}
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
+
+            {/* Blocked Notices */}
+            {isTargetBlockedByMe && (
+              <div className="bg-error/10 border-b border-error/20 p-2.5 text-xs text-error font-medium flex items-center justify-between px-4">
+                <div className="flex items-center gap-2">
+                  <UserX size={15} />
+                  <span>You have blocked @{targetUser?.username}</span>
+                </div>
+                <button 
+                  onClick={handleToggleBlockTarget}
+                  className="btn btn-xs btn-error btn-outline rounded-full"
+                >
+                  Unblock
+                </button>
+              </div>
+            )}
+
+            {isTargetBlockedByThem && (
+              <div className="bg-warning/10 border-b border-warning/20 p-2.5 text-xs text-warning font-medium flex items-center gap-2 px-4">
+                <ShieldAlert size={15} />
+                <span>You cannot send messages to this conversation.</span>
+              </div>
+            )}
 
             {/* Chat Messages Stream */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-base-200/20">
@@ -382,52 +461,68 @@ const Messages = () => {
               </div>
             )}
 
-            {/* Message Input Form */}
-            <div className="p-3 border-t border-base-200 bg-base-100">
-              <form onSubmit={handleSend} className="flex gap-2 items-center">
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  ref={fileInputRef} 
-                  onChange={handleMediaSelect}
-                />
-                
-                <button 
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="btn btn-ghost btn-circle btn-sm text-primary"
-                  title="Attach Photo"
-                >
-                  <ImageIcon size={19} />
-                </button>
+            {/* Message Input Form or Blocked Notice */}
+            {isBlockedAny ? (
+              <div className="p-4 border-t border-base-200 bg-base-100 text-center text-xs text-base-content/60">
+                {isTargetBlockedByMe ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <UserX size={15} className="text-error" />
+                    <span>You have blocked this user. Unblock them to send messages.</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    <ShieldAlert size={15} className="text-warning" />
+                    <span>This user is unavailable. You cannot send messages.</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 border-t border-base-200 bg-base-100">
+                <form onSubmit={handleSend} className="flex gap-2 items-center">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    ref={fileInputRef} 
+                    onChange={handleMediaSelect}
+                  />
+                  
+                  <button 
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="btn btn-ghost btn-circle btn-sm text-primary"
+                    title="Attach Photo"
+                  >
+                    <ImageIcon size={19} />
+                  </button>
 
-                <button 
-                  type="button"
-                  onClick={() => setShowEmoji(!showEmoji)}
-                  className={`btn btn-ghost btn-circle btn-sm ${showEmoji ? 'text-primary bg-primary/10' : 'text-base-content/60'}`}
-                  title="Emoji"
-                >
-                  <Smile size={19} />
-                </button>
+                  <button 
+                    type="button"
+                    onClick={() => setShowEmoji(!showEmoji)}
+                    className={`btn btn-ghost btn-circle btn-sm ${showEmoji ? 'text-primary bg-primary/10' : 'text-base-content/60'}`}
+                    title="Emoji"
+                  >
+                    <Smile size={19} />
+                  </button>
 
-                <input 
-                  type="text" 
-                  className="input input-bordered input-sm flex-1 rounded-full px-4 text-sm" 
-                  placeholder="Type a message..." 
-                  value={messageInput}
-                  onChange={handleInputChange}
-                />
+                  <input 
+                    type="text" 
+                    className="input input-bordered input-sm flex-1 rounded-full px-4 text-sm" 
+                    placeholder="Type a message..." 
+                    value={messageInput}
+                    onChange={handleInputChange}
+                  />
 
-                <button 
-                  type="submit" 
-                  className="btn btn-primary btn-circle btn-sm shrink-0" 
-                  disabled={!messageInput.trim() && !media}
-                >
-                  <Send size={15} />
-                </button>
-              </form>
-            </div>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary btn-circle btn-sm shrink-0" 
+                    disabled={!messageInput.trim() && !media}
+                  >
+                    <Send size={15} />
+                  </button>
+                </form>
+              </div>
+            )}
           </>
         )}
       </div>

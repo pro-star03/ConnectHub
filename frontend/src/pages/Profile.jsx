@@ -1,16 +1,37 @@
 import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getUserProfile, updateUserProfile, followUser, unfollowUser } from '../services/userService';
+import { getUserProfile, updateUserProfile, followUser, unfollowUser, blockUser, unblockUser } from '../services/userService';
 import { getPosts, getSavedPosts } from '../services/postService';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
 import PostCard from '../components/PostCard';
-import { Edit3, Camera, Settings as SettingsIcon, MessageSquare, Bookmark, Image as ImageIcon, FileText, BadgeCheck } from 'lucide-react';
+import { 
+  Edit3, 
+  Camera, 
+  Settings as SettingsIcon, 
+  MessageSquare, 
+  Bookmark, 
+  Image as ImageIcon, 
+  FileText, 
+  BadgeCheck,
+  UserX,
+  UserCheck,
+  ShieldAlert,
+  MoreVertical
+} from 'lucide-react';
 import { imageToBase64 } from '../utils/imageToBase64';
 
 const Profile = () => {
   const { id } = useParams();
-  const { user: currentUser, updateUser, addFollowing, removeFollowing } = useContext(AuthContext);
+  const { 
+    user: currentUser, 
+    updateUser, 
+    addFollowing, 
+    removeFollowing,
+    blockedUserIds,
+    addBlockedId,
+    removeBlockedId 
+  } = useContext(AuthContext);
   const { isUserOnline } = useContext(SocketContext);
   const profileId = id || currentUser?._id;
   
@@ -21,6 +42,9 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [isBlockedByMe, setIsBlockedByMe] = useState(false);
+  const [isBlockedByThem, setIsBlockedByThem] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
 
   // Edit State
   const [editName, setEditName] = useState('');
@@ -50,6 +74,13 @@ const Profile = () => {
         
         setProfile(profileRes.data);
         const myId = currentUser?._id?.toString();
+        const pId = profileId?.toString();
+        const blockedByMe = Boolean(profileRes.data.isBlockedByMe || blockedUserIds?.has(pId));
+        const blockedByThem = Boolean(profileRes.data.isBlockedByThem);
+
+        setIsBlockedByMe(blockedByMe);
+        setIsBlockedByThem(blockedByThem);
+
         setIsFollowing(
           (profileRes.data.followers || []).some(f => (typeof f === 'object' ? f._id : f)?.toString() === myId)
         );
@@ -57,13 +88,18 @@ const Profile = () => {
         setEditHeadline(profileRes.data.headline || '');
         setEditBio(profileRes.data.bio || '');
         
-        const filteredPosts = (postsRes.data || []).filter(
-          p => (typeof p.user === 'object' ? p.user?._id : p.user)?.toString() === profileId?.toString()
-        );
-        setUserPosts(filteredPosts);
+        if (blockedByMe || blockedByThem) {
+          setUserPosts([]);
+          setSavedPosts([]);
+        } else {
+          const filteredPosts = (postsRes.data || []).filter(
+            p => (typeof p.user === 'object' ? p.user?._id : p.user)?.toString() === profileId?.toString()
+          );
+          setUserPosts(filteredPosts);
 
-        if (savedRes && savedRes.data) {
-          setSavedPosts(savedRes.data);
+          if (savedRes && savedRes.data) {
+            setSavedPosts(savedRes.data);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -73,7 +109,50 @@ const Profile = () => {
     };
     
     if (profileId) fetchData();
-  }, [profileId, currentUser?._id, isOwnProfile]);
+  }, [profileId, currentUser?._id, isOwnProfile, blockedUserIds]);
+
+  const handleBlockToggle = async () => {
+    setBlockLoading(true);
+    try {
+      if (isBlockedByMe) {
+        if (!window.confirm(`Unblock @${profile.username}? They will be able to see your profile, posts, and message you.`)) {
+          setBlockLoading(false);
+          return;
+        }
+        await unblockUser(profileId);
+        removeBlockedId(profileId);
+        setIsBlockedByMe(false);
+        setProfile(prev => ({ ...prev, isBlockedByMe: false }));
+        // Refresh posts
+        const { data: allPosts } = await getPosts();
+        const filtered = (allPosts || []).filter(
+          p => (typeof p.user === 'object' ? p.user?._id : p.user)?.toString() === profileId?.toString()
+        );
+        setUserPosts(filtered);
+      } else {
+        if (!window.confirm(`Block @${profile.username}? They will no longer be able to follow you, view your posts, or message you. Existing follow connections will be removed.`)) {
+          setBlockLoading(false);
+          return;
+        }
+        await blockUser(profileId);
+        addBlockedId(profileId);
+        setIsBlockedByMe(true);
+        setIsFollowing(false);
+        removeFollowing(profileId);
+        setUserPosts([]);
+        setProfile(prev => ({ 
+          ...prev, 
+          isBlockedByMe: true,
+          followers: (prev.followers || []).filter(f => (typeof f === 'object' ? f._id : f)?.toString() !== currentUser._id?.toString()) 
+        }));
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Failed to update block status');
+    } finally {
+      setBlockLoading(false);
+    }
+  };
 
   const handleFollowToggle = async () => {
     setFollowLoading(true);
@@ -215,21 +294,53 @@ const Profile = () => {
             {/* Action Buttons */}
             <div className="flex items-center gap-2">
               {!isOwnProfile ? (
-                <>
-                  <Link 
-                    to={`/messages/${profile._id}`} 
-                    className="btn btn-sm rounded-full btn-outline gap-1.5"
-                  >
-                    <MessageSquare size={16} /> Message
-                  </Link>
+                isBlockedByThem ? (
+                  <span className="badge badge-error badge-outline py-2.5 px-3.5 text-xs font-semibold">
+                    Blocked
+                  </span>
+                ) : isBlockedByMe ? (
                   <button 
-                    onClick={handleFollowToggle}
-                    className={`btn btn-sm rounded-full px-5 ${isFollowing ? 'btn-outline' : 'btn-primary'}`}
-                    disabled={followLoading}
+                    onClick={handleBlockToggle}
+                    disabled={blockLoading}
+                    className="btn btn-sm rounded-full btn-outline hover:btn-success gap-1.5 px-4"
                   >
-                    {followLoading ? <span className="loading loading-spinner loading-xs"></span> : (isFollowing ? 'Following' : 'Follow')}
+                    {blockLoading ? (
+                      <span className="loading loading-spinner loading-xs"></span>
+                    ) : (
+                      <>
+                        <UserCheck size={16} /> Unblock
+                      </>
+                    )}
                   </button>
-                </>
+                ) : (
+                  <>
+                    <Link 
+                      to={`/messages/${profile._id}`} 
+                      className="btn btn-sm rounded-full btn-outline gap-1.5"
+                    >
+                      <MessageSquare size={16} /> Message
+                    </Link>
+                    <button 
+                      onClick={handleFollowToggle}
+                      className={`btn btn-sm rounded-full px-5 ${isFollowing ? 'btn-outline' : 'btn-primary'}`}
+                      disabled={followLoading}
+                    >
+                      {followLoading ? <span className="loading loading-spinner loading-xs"></span> : (isFollowing ? 'Following' : 'Follow')}
+                    </button>
+                    <div className="dropdown dropdown-end">
+                      <label tabIndex={0} className="btn btn-sm btn-ghost btn-circle">
+                        <MoreVertical size={18} />
+                      </label>
+                      <ul tabIndex={0} className="dropdown-content z-20 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-44 border border-base-200 text-xs">
+                        <li>
+                          <button onClick={handleBlockToggle} className="text-error hover:bg-error/10 font-medium">
+                            <UserX size={15} /> Block @{profile.username}
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  </>
+                )
               ) : (
                 <>
                   <button 
@@ -263,6 +374,30 @@ const Profile = () => {
             )}
           </div>
 
+          {/* Blocked Notices */}
+          {isBlockedByMe && (
+            <div className="mt-4 p-3 bg-error/10 border border-error/20 rounded-2xl flex items-center justify-between text-xs text-error font-medium">
+              <div className="flex items-center gap-2">
+                <UserX size={16} />
+                <span>You have blocked @{profile.username}</span>
+              </div>
+              <button 
+                onClick={handleBlockToggle} 
+                disabled={blockLoading} 
+                className="btn btn-xs btn-error btn-outline rounded-full"
+              >
+                Unblock
+              </button>
+            </div>
+          )}
+
+          {isBlockedByThem && (
+            <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-2xl flex items-center gap-2 text-xs text-warning font-medium">
+              <ShieldAlert size={16} />
+              <span>This account is unavailable to you.</span>
+            </div>
+          )}
+
           {/* Bio */}
           {profile.bio && (
             <p className="mt-3 text-sm text-base-content/85 leading-relaxed whitespace-pre-wrap">{profile.bio}</p>
@@ -289,83 +424,115 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-base-100 border border-base-200/80 rounded-2xl p-1 mb-4 flex">
-        <button
-          onClick={() => setActiveTab('posts')}
-          className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'posts' ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/60 hover:text-base-content'
-          }`}
-        >
-          <FileText size={16} /> Posts ({userPosts.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('media')}
-          className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'media' ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/60 hover:text-base-content'
-          }`}
-        >
-          <ImageIcon size={16} /> Media ({mediaPosts.length})
-        </button>
-
-        {isOwnProfile && (
-          <button
-            onClick={() => setActiveTab('saved')}
-            className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-              activeTab === 'saved' ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/60 hover:text-base-content'
-            }`}
+      {/* Tabs & Content or Blocked Notice */}
+      {isBlockedByMe ? (
+        <div className="card bg-base-100 border border-base-200 p-10 text-center rounded-3xl mt-2 flex flex-col items-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-error/10 text-error flex items-center justify-center mb-3">
+            <UserX size={28} />
+          </div>
+          <h3 className="font-bold text-base mb-1">You blocked @{profile.username}</h3>
+          <p className="text-xs text-base-content/60 max-w-sm mb-4">
+            You cannot view their posts, stories, or message them. Unblock them to restore access and communication.
+          </p>
+          <button 
+            onClick={handleBlockToggle} 
+            disabled={blockLoading} 
+            className="btn btn-sm btn-outline hover:btn-success rounded-full px-5"
           >
-            <Bookmark size={16} /> Saved ({savedPosts.length})
+            {blockLoading ? <span className="loading loading-spinner loading-xs"></span> : `Unblock @${profile.username}`}
           </button>
-        )}
-      </div>
+        </div>
+      ) : isBlockedByThem ? (
+        <div className="card bg-base-100 border border-base-200 p-10 text-center rounded-3xl mt-2 flex flex-col items-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-warning/10 text-warning flex items-center justify-center mb-3">
+            <ShieldAlert size={28} />
+          </div>
+          <h3 className="font-bold text-base mb-1">Account Unavailable</h3>
+          <p className="text-xs text-base-content/60 max-w-sm">
+            This account's posts, media, and activities are not accessible.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Tabs */}
+          <div className="bg-base-100 border border-base-200/80 rounded-2xl p-1 mb-4 flex">
+            <button
+              onClick={() => setActiveTab('posts')}
+              className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                activeTab === 'posts' ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/60 hover:text-base-content'
+              }`}
+            >
+              <FileText size={16} /> Posts ({userPosts.length})
+            </button>
 
-      {/* Posts Stream for Active Tab */}
-      <div>
-        {activeTab === 'posts' && (
-          userPosts.length === 0 ? (
-            <div className="card bg-base-100 border border-base-200 p-12 text-center rounded-2xl">
-              <p className="text-lg font-bold mb-1">No posts yet</p>
-              <p className="text-xs text-base-content/50">When this user shares thoughts or photos, they will show up here.</p>
-            </div>
-          ) : (
-            userPosts.map(post => <PostCard key={post._id} post={post} />)
-          )
-        )}
+            <button
+              onClick={() => setActiveTab('media')}
+              className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                activeTab === 'media' ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/60 hover:text-base-content'
+              }`}
+            >
+              <ImageIcon size={16} /> Media ({mediaPosts.length})
+            </button>
 
-        {activeTab === 'media' && (
-          mediaPosts.length === 0 ? (
-            <div className="card bg-base-100 border border-base-200 p-12 text-center rounded-2xl">
-              <p className="text-lg font-bold mb-1">No media shared</p>
-              <p className="text-xs text-base-content/50">Photos attached to posts will appear here.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {mediaPosts.map(post => (
-                <Link 
-                  key={post._id} 
-                  to={`/post/${post._id}`}
-                  className="aspect-square rounded-2xl overflow-hidden bg-base-200/40 border border-base-200 group relative block"
-                >
-                  <img src={post.image} alt="Media" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                </Link>
-              ))}
-            </div>
-          )
-        )}
+            {isOwnProfile && (
+              <button
+                onClick={() => setActiveTab('saved')}
+                className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                  activeTab === 'saved' ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/60 hover:text-base-content'
+                }`}
+              >
+                <Bookmark size={16} /> Saved ({savedPosts.length})
+              </button>
+            )}
+          </div>
 
-        {activeTab === 'saved' && isOwnProfile && (
-          savedPosts.length === 0 ? (
-            <div className="card bg-base-100 border border-base-200 p-12 text-center rounded-2xl">
-              <p className="text-lg font-bold mb-1">No saved posts</p>
-              <p className="text-xs text-base-content/50">Bookmarks you save will appear here.</p>
-            </div>
-          ) : (
-            savedPosts.map(post => <PostCard key={post._id} post={post} />)
-          )
-        )}
-      </div>
+          {/* Posts Stream for Active Tab */}
+          <div>
+            {activeTab === 'posts' && (
+              userPosts.length === 0 ? (
+                <div className="card bg-base-100 border border-base-200 p-12 text-center rounded-2xl">
+                  <p className="text-lg font-bold mb-1">No posts yet</p>
+                  <p className="text-xs text-base-content/50">When this user shares thoughts or photos, they will show up here.</p>
+                </div>
+              ) : (
+                userPosts.map(post => <PostCard key={post._id} post={post} />)
+              )
+            )}
+
+            {activeTab === 'media' && (
+              mediaPosts.length === 0 ? (
+                <div className="card bg-base-100 border border-base-200 p-12 text-center rounded-2xl">
+                  <p className="text-lg font-bold mb-1">No media shared</p>
+                  <p className="text-xs text-base-content/50">Photos attached to posts will appear here.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {mediaPosts.map(post => (
+                    <Link 
+                      key={post._id} 
+                      to={`/post/${post._id}`}
+                      className="aspect-square rounded-2xl overflow-hidden bg-base-200/40 border border-base-200 group relative block"
+                    >
+                      <img src={post.image} alt="Media" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    </Link>
+                  ))}
+                </div>
+              )
+            )}
+
+            {activeTab === 'saved' && isOwnProfile && (
+              savedPosts.length === 0 ? (
+                <div className="card bg-base-100 border border-base-200 p-12 text-center rounded-2xl">
+                  <p className="text-lg font-bold mb-1">No saved posts</p>
+                  <p className="text-xs text-base-content/50">Bookmarks you save will appear here.</p>
+                </div>
+              ) : (
+                savedPosts.map(post => <PostCard key={post._id} post={post} />)
+              )
+            )}
+          </div>
+        </>
+      )}
 
       {/* Followers Modal */}
       <dialog id="followers_modal" className="modal modal-bottom sm:modal-middle">

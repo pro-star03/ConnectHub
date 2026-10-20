@@ -28,23 +28,44 @@ exports.createStory = async (req, res) => {
 exports.getActiveStories = async (req, res) => {
   try {
     const now = new Date();
-    
-    // Fetch only stories from self and followed users
-    const currentUser = await User.findById(req.user._id);
-    const allowedIds = [req.user._id, ...(currentUser?.following || [])];
+    const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.role === 'admin'));
 
-    const stories = await Story.find({ 
-      user: { $in: allowedIds },
-      expiresAt: { $gt: now } 
-    }).populate('user', 'username name profilePicture').sort({ createdAt: 1 });
+    let storyQuery = { expiresAt: { $gt: now } };
+
+    // Regular users can only see stories of themselves and followed users (excluding blocked users).
+    // Platform administrators can see the stories of EVERY user on the platform.
+    if (!isAdmin) {
+      const currentUser = await User.findById(req.user._id).select('following blockedUsers');
+      const blockedByOthers = await User.find({ blockedUsers: req.user._id }).select('_id');
+      const allBlocked = new Set([
+        ...(currentUser?.blockedUsers || []).map(id => id.toString()),
+        ...blockedByOthers.map(u => u._id.toString())
+      ]);
+
+      const allowedIds = [req.user._id, ...(currentUser?.following || [])]
+        .filter(id => !allBlocked.has(id.toString()));
+
+      storyQuery.user = { $in: allowedIds };
+    }
+
+    const stories = await Story.find(storyQuery)
+      .populate('user', 'username name profilePicture')
+      .sort({ createdAt: 1 });
 
     const storyIds = stories.map(s => s._id);
     const views = await StoryView.find({
-      story: { $in: storyIds },
-      viewer: req.user._id
+      story: { $in: storyIds }
     });
     
-    const viewedStoryIds = new Set(views.map(v => v.story.toString()));
+    const viewedStoryIds = new Set(
+      views.filter(v => v.viewer.toString() === req.user._id.toString()).map(v => v.story.toString())
+    );
+
+    const viewCountsMap = {};
+    for (const v of views) {
+      const sId = v.story.toString();
+      viewCountsMap[sId] = (viewCountsMap[sId] || 0) + 1;
+    }
 
     const grouped = {};
     for (const story of stories) {
@@ -58,7 +79,8 @@ exports.getActiveStories = async (req, res) => {
       }
       grouped[userId].stories.push({
         ...story.toObject(),
-        isViewed: viewedStoryIds.has(story._id.toString())
+        isViewed: viewedStoryIds.has(story._id.toString()),
+        viewsCount: viewCountsMap[story._id.toString()] || 0
       });
     }
 
@@ -110,7 +132,8 @@ exports.getStoryViewers = async (req, res) => {
     const story = await Story.findById(req.params.id);
     if (!story) return res.status(404).json({ message: 'Story not found' });
 
-    if (story.user.toString() !== req.user._id.toString()) {
+    const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.role === 'admin'));
+    if (story.user.toString() !== req.user._id.toString() && !isAdmin) {
       return res.status(403).json({ message: 'Not authorized to view viewers of this story' });
     }
 
@@ -129,7 +152,8 @@ exports.deleteStory = async (req, res) => {
     const story = await Story.findById(req.params.id);
     if (!story) return res.status(404).json({ message: 'Story not found' });
     
-    if (story.user.toString() !== req.user._id.toString()) {
+    const isAdmin = Boolean(req.user && (req.user.isAdmin || req.user.role === 'admin'));
+    if (story.user.toString() !== req.user._id.toString() && !isAdmin) {
       return res.status(401).json({ message: 'Not authorized' });
     }
     

@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [followingIds, setFollowingIds] = useState(new Set());
+  const [blockedUserIds, setBlockedUserIds] = useState(new Set());
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -72,6 +73,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
     setUser(null);
     setFollowingIds(new Set());
+    setBlockedUserIds(new Set());
     document.documentElement.removeAttribute('data-theme');
   };
 
@@ -99,10 +101,13 @@ export const AuthProvider = ({ children }) => {
         .then(res => {
           const ids = (res.data.following || []).map(f => (typeof f === 'object' ? f._id : f).toString());
           setFollowingIds(new Set(ids));
+          const blocked = (res.data.blockedUsers || []).map(b => (typeof b === 'object' ? b._id : b).toString());
+          setBlockedUserIds(new Set(blocked));
         })
         .catch(console.error);
     } else {
       setFollowingIds(new Set());
+      setBlockedUserIds(new Set());
     }
   }, [user?._id]);
 
@@ -124,6 +129,26 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const addBlockedId = (id) => {
+    if (!id) return;
+    const strId = id.toString();
+    setBlockedUserIds(prev => new Set(prev).add(strId));
+    setFollowingIds(prev => {
+      const next = new Set(prev);
+      next.delete(strId);
+      return next;
+    });
+  };
+
+  const removeBlockedId = (id) => {
+    if (!id) return;
+    setBlockedUserIds(prev => {
+      const next = new Set(prev);
+      next.delete(id.toString());
+      return next;
+    });
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -134,7 +159,10 @@ export const AuthProvider = ({ children }) => {
       loading,
       followingIds,
       addFollowing,
-      removeFollowing
+      removeFollowing,
+      blockedUserIds,
+      addBlockedId,
+      removeBlockedId
     }}>
       {!loading && children}
     </AuthContext.Provider>

@@ -1,15 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
 import { getPosts } from '../services/postService';
 import PostCard from '../components/PostCard';
 import Stories from '../components/Stories';
 import CreatePostBox from '../components/CreatePostBox';
-import { Sparkles, Users, Flame, RefreshCw } from 'lucide-react';
+import { Sparkles, Users, Flame, PlusSquare, Image as ImageIcon, BarChart2, Smile, X } from 'lucide-react';
 
 const Home = () => {
+  const { user } = useContext(AuthContext);
   const [posts, setPosts] = useState([]);
   const [activeTab, setActiveTab] = useState('for-you'); // 'for-you' | 'following' | 'trending'
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [error, setError] = useState('');
 
   const fetchPosts = useCallback(async (tab = activeTab) => {
@@ -21,12 +23,12 @@ const Home = () => {
 
       const { data } = await getPosts(params);
       setPosts(data || []);
+      return data;
     } catch (err) {
       console.error(err);
       setError('Failed to load posts. Please try again later.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, [activeTab]);
 
@@ -34,11 +36,6 @@ const Home = () => {
     setLoading(true);
     fetchPosts(activeTab);
   }, [activeTab, fetchPosts]);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchPosts(activeTab);
-  };
 
   const handlePostCreated = (newPost) => {
     setPosts(prev => [newPost, ...prev]);
@@ -89,18 +86,105 @@ const Home = () => {
             <Flame size={16} /> Trending
           </button>
         </div>
-
-        <button 
-          onClick={handleRefresh}
-          className={`btn btn-ghost btn-circle btn-sm text-base-content/60 hover:text-primary ${refreshing ? 'animate-spin text-primary' : ''}`}
-          title="Refresh Feed"
-        >
-          <RefreshCw size={16} />
-        </button>
       </div>
 
-      {/* Inline Post Creator */}
-      <CreatePostBox onPostCreated={handlePostCreated} />
+      {/* Create Post Prompt / Trigger Bar */}
+      <div 
+        onClick={() => setIsCreateOpen(true)}
+        className="card bg-base-100 border border-base-200/80 p-3 sm:p-4 mb-4 rounded-2xl shadow-sm hover:shadow-md hover:border-primary/40 transition-all cursor-pointer group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="avatar">
+            <div className="w-10 h-10 rounded-full ring-2 ring-primary/20 group-hover:ring-primary transition-all">
+              <img 
+                src={user?.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} 
+                alt={user?.name || 'User'} 
+                className="object-cover"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 bg-base-200/60 group-hover:bg-base-200/90 rounded-full py-2.5 px-4 text-xs sm:text-sm text-base-content/60 transition-colors">
+            What's on your mind, {user?.name ? user.name.split(' ')[0] : 'there'}?
+          </div>
+
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsCreateOpen(true);
+            }}
+            className="btn btn-primary btn-sm rounded-xl gap-1.5 font-bold shadow-sm"
+          >
+            <PlusSquare size={16} />
+            <span className="hidden sm:inline">Create Post</span>
+          </button>
+        </div>
+
+        {/* Quick action buttons */}
+        <div className="flex items-center justify-around border-t border-base-200/60 pt-2.5 mt-3 text-xs font-semibold text-base-content/70">
+          <button 
+            type="button" 
+            onClick={(e) => { e.stopPropagation(); setIsCreateOpen(true); }}
+            className="flex items-center gap-1.5 py-1 px-3 rounded-xl hover:bg-base-200 transition-colors"
+          >
+            <ImageIcon size={16} className="text-success" />
+            <span>Photo / Media</span>
+          </button>
+
+          <button 
+            type="button" 
+            onClick={(e) => { e.stopPropagation(); setIsCreateOpen(true); }}
+            className="flex items-center gap-1.5 py-1 px-3 rounded-xl hover:bg-base-200 transition-colors"
+          >
+            <BarChart2 size={16} className="text-primary" />
+            <span>Poll</span>
+          </button>
+
+          <button 
+            type="button" 
+            onClick={(e) => { e.stopPropagation(); setIsCreateOpen(true); }}
+            className="flex items-center gap-1.5 py-1 px-3 rounded-xl hover:bg-base-200 transition-colors"
+          >
+            <Smile size={16} className="text-warning" />
+            <span>Feeling / Activity</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Create Post Modal */}
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto bg-base-100 rounded-3xl shadow-2xl border border-base-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-base-200">
+              <h3 className="font-bold text-lg flex items-center gap-2 text-base-content">
+                <PlusSquare className="text-primary" size={20} />
+                Create Post
+              </h3>
+              <button 
+                onClick={() => setIsCreateOpen(false)}
+                className="btn btn-ghost btn-circle btn-sm text-base-content/70 hover:text-base-content"
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 sm:p-5">
+              <CreatePostBox 
+                isModal={true}
+                autoFocus={true}
+                onPostCreated={(newPost) => {
+                  handlePostCreated(newPost);
+                  setIsCreateOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Feed Stream */}
       <div className="pt-1">
